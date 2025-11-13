@@ -1,0 +1,17 @@
+Flask==2.3.0
+Flask-Login==0.6.2
+Flask-Cors==4.0.0
+Flask-JWT-Extended==4.5.2
+PyMySQL==1.1.0
+cryptography>=41.0.0
+DBUtils==3.0.3
+Werkzeug==2.3.0
+Pillow==10.0.0
+requests==2.31.0
+Flask-APScheduler==1.13.1
+# pandas updated to 2.2.3 to use available prebuilt wheel on Python 3.12
+pandas==2.2.3
+# scikit-learn pinned to 1.6.1 to avoid source-build issues on Windows and mirror availability
+scikit-learn==1.6.1
+# Use a numpy wheel available for Python 3.12 on Windows
+numpy==2.3.4

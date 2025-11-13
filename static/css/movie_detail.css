@@ -1,0 +1,646 @@
+/* movie_detail.css */
+
+/* 取消所有文字的下划线 */
+a, a:visited, a:hover, a:active {
+    text-decoration: none;
+}
+
+.movie-container {
+    max-width: 1200px;
+    margin: 20px auto;
+    display: flex;
+    flex-direction: column;
+}
+
+.movie-header {
+    display: flex;
+    background: linear-gradient(to right, #1c2b3a, #2b3c4d);
+    padding: 30px;
+    color: white;
+    border-radius: 8px;
+    margin-bottom: 30px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+}
+
+.movie-poster {
+    flex: 0 0 240px;
+    margin-right: 40px;
+}
+
+.movie-poster img {
+    width: 100%;
+    border-radius: 8px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
+}
+
+.no-poster {
+    width: 100%;
+    height: 360px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #2c3e50;
+    color: #ecf0f1;
+    font-size: 18px;
+    border-radius: 8px;
+}
+
+.no-poster.small {
+    height: 270px; /* 与图片高度保持一致 */
+    font-size: 14px;
+}
+
+.movie-info {
+    flex: 1;
+}
+
+.movie-title {
+    font-size: 32px;
+    margin-bottom: 15px;
+    font-weight: bold;
+}
+
+.movie-score {
+    font-size: 48px;
+    color: #ffb400;
+    margin-bottom: 25px;
+}
+
+.vote-count {
+    font-size: 18px;
+    color: #aaa;
+    margin-left: 10px;
+    font-weight: normal;
+}
+
+.movie-metadata {
+    margin-bottom: 20px;
+}
+
+.movie-metadata p {
+    margin: 8px 0;
+    font-size: 16px;
+    line-height: 1.6;
+}
+
+.metadata-label {
+    color: #aaa;
+    margin-right: 10px;
+    font-weight: 500;
+}
+
+/* 为类型、导演、演员信息添加样式 */
+.movie-metadata p:nth-child(4),
+.movie-metadata p:nth-child(5),
+.movie-metadata p:nth-child(6) {
+    margin-top: 12px;
+}
+
+.movie-content {
+    margin-bottom: 40px;
+}
+
+.section-title {
+    font-size: 22px;
+    color: #333;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #eee;
+}
+
+.movie-summary {
+    font-size: 16px;
+    line-height: 1.8;
+    color: #555;
+    margin-bottom: 30px;
+}
+
+/* 评分系统样式 */
+.rating-section {
+    background-color: #f9f9f9;
+    padding: 25px;
+    border-radius: 8px;
+    margin-bottom: 30px;
+}
+
+.user-rating-info {
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #eee;
+}
+
+.rating-form {
+    margin-top: 20px;
+}
+
+.rating-stars {
+    display: flex;
+    flex-direction: row;
+    justify-content: flex-start;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.stars {
+    font-size: 24px;
+    color: #ddd;
+    cursor: pointer;
+}
+
+.stars .star {
+    display: inline-block;
+    margin-right: 5px;
+    transition: color 0.2s;
+}
+
+.stars .star.hover,
+.stars .star.active {
+    color: #ffb400;
+}
+
+.rating-value {
+    margin-left: 15px;
+    font-size: 20px;
+    font-weight: bold;
+    color: #ffb400;
+}
+
+.max-rating {
+    font-size: 16px;
+    color: #999;
+}
+
+.comment-input {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    margin-bottom: 15px;
+    resize: vertical;
+    min-height: 100px;
+}
+
+.submit-rating {
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+.submit-rating:hover {
+    background-color: #45a049;
+}
+
+.user-rating-badge {
+    display: inline-block;
+    background-color: #ffb400;
+    color: white;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-weight: bold;
+    margin-left: 10px;
+}
+
+/* 用户评论样式 */
+.user-reviews {
+    margin-top: 30px;
+}
+
+.review-item {
+    border-bottom: 1px solid #eee;
+    padding: 15px 0;
+}
+
+.review-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.review-user {
+    font-weight: bold;
+    color: #333;
+}
+
+.review-rating {
+    color: #ffb400;
+    font-weight: bold;
+}
+
+.review-date {
+    color: #999;
+    font-size: 0.9em;
+    margin-bottom: 8px;
+}
+
+.review-comment {
+    color: #555;
+    line-height: 1.6;
+}
+
+/* 相似电影推荐样式 */
+.similar-movies {
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    padding: 25px;
+    margin-top: 30px;
+}
+
+.similar-movies .section-title {
+    margin-bottom: 15px;
+}
+
+.similarity-explanation {
+    background-color: #e9ecef;
+    border-left: 4px solid #6a11cb;
+    padding: 12px 15px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    border-radius: 4px;
+}
+
+.similarity-explanation i {
+    color: #6a11cb;
+    font-size: 18px;
+    margin-right: 10px;
+}
+
+.similarity-explanation span {
+    color: #555;
+    font-size: 14px;
+    line-height: 1.4;
+}
+
+.related-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 20px;
+}
+
+.related-item-wrapper {
+    background-color: #fff;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    display: flex;
+    flex-direction: column;
+}
+
+.related-item-wrapper:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 15px rgba(0, 0, 0, 0.15);
+}
+
+.related-item {
+    display: block;
+    text-decoration: none;
+    color: inherit;
+    position: relative;
+    flex: 1;
+}
+
+.related-item img {
+    width: 100%;
+    height: 180px;
+    object-fit: cover;
+    transition: transform 0.3s ease;
+}
+
+.related-item-wrapper:hover .related-item img {
+    transform: scale(1.05);
+}
+
+.no-poster.small {
+    height: 180px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #eee;
+    color: #999;
+}
+
+.related-title {
+    padding: 12px 15px 8px;
+    font-weight: bold;
+    font-size: 16px;
+    color: #333;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin: 0;
+}
+
+.related-score {
+    padding: 0 15px 15px;
+    display: flex;
+    align-items: baseline;
+}
+
+.rating-badge {
+    display: flex;
+    align-items: baseline;
+    margin-right: 8px;
+}
+
+.rating-badge i {
+    color: #ffd700;
+    font-size: 16px;
+    margin-right: 4px;
+    position: relative;
+    top: 1px;
+}
+
+.rating-badge span {
+    font-size: 14px;
+    font-weight: bold;
+    color: #333;
+}
+
+.related-score small {
+    font-size: 12px;
+    color: #999;
+}
+
+.similarity-info {
+    padding: 0 15px 15px;
+    border-top: 1px solid #f0f0f0;
+}
+
+.similarity-meter {
+    margin: 15px 0 10px;
+}
+
+.similarity-bar {
+    height: 6px;
+    background-color: #e9ecef;
+    border-radius: 3px;
+    overflow: hidden;
+    margin-bottom: 4px;
+}
+
+.similarity-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #6a11cb 0%, #2575fc 100%);
+    border-radius: 3px;
+    transition: width 0.5s ease;
+}
+
+.similarity-text {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: #666;
+}
+
+.similarity-percentage {
+    font-weight: bold;
+    color: #6a11cb;
+}
+
+.similarity-reason {
+    background-color: #f8f9fa;
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: 13px;
+    color: #444;
+    margin-top: 10px;
+}
+
+.similarity-reason i {
+    margin-right: 5px;
+    color: #6a11cb;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+    .movie-header {
+        flex-direction: column;
+    }
+
+    .movie-poster {
+        margin-right: 0;
+        margin-bottom: 20px;
+        max-width: 200px;
+    }
+
+    .related-list {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 480px) {
+    .related-list {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* 新的评分表单样式 - 完全重写 */
+.rating-form-section {
+    background-color: #f9f9f9;
+    padding: 25px;
+    border-radius: 8px;
+    margin: 30px 0;
+}
+
+.rating-form-section h3 {
+    margin-top: 0;
+    margin-bottom: 20px;
+    font-size: 20px;
+    color: #333;
+}
+
+/* 星级评分系统 */
+.rating-form .rating-stars {
+    display: flex;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+/* 星星容器 */
+.rating-form .stars-container {
+    display: flex;
+    flex-direction: row-reverse;
+    justify-content: flex-end;
+}
+
+.rating-form .rating-stars input[type="radio"] {
+    display: none;
+}
+
+.rating-form .rating-stars label {
+    cursor: pointer;
+    font-size: 24px;
+    color: #ddd;
+    margin-right: 5px;
+}
+
+.rating-form .rating-stars label:before {
+    content: "\f005";
+    font-family: "Font Awesome 5 Free";
+    font-weight: 900;
+}
+
+/* 点亮星星：从右向左点亮星星，对应从左向右评分 */
+.rating-form .rating-stars input[type="radio"]:checked ~ label:before,
+.rating-form .rating-stars input[type="radio"]:hover ~ label:before {
+    color: #ffb400;
+}
+
+.rating-form .rating-stars input[type="radio"]:hover ~ label:before {
+    color: #ffb400;
+}
+
+.rating-form .rating-value {
+    margin-left: 15px;
+    font-size: 28px;
+    font-weight: bold;
+    color: #ffb400;
+    min-width: 40px;
+    text-align: center;
+}
+
+.rating-form .comment-box {
+    margin-bottom: 20px;
+}
+
+.rating-form textarea {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    resize: vertical;
+    min-height: 100px;
+}
+
+.rating-form .submit-rating {
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+.rating-form .submit-rating:hover {
+    background-color: #45a049;
+}
+
+.admin-note {
+    background-color: #f8f9fa;
+    border-left: 4px solid #6c757d;
+    padding: 15px;
+    margin: 20px 0;
+    color: #495057;
+}
+
+/* 电影类型标签样式 */
+.movie-genres {
+    margin: 12px 0;
+}
+
+.genre-tags {
+    display: flex;
+    flex-wrap: wrap;
+    margin-top: 8px;
+}
+
+.genre-tag {
+    display: inline-block;
+    background-color: #3498db;
+    color: white;
+    padding: 5px 10px;
+    border-radius: 20px;
+    margin-right: 8px;
+    margin-bottom: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    transition: all 0.2s ease;
+}
+
+.genre-tag:hover {
+    background-color: #2980b9;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.15);
+}
+
+/* 相似电影推荐头部样式 */
+.recommendation-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.recommendation-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+/* 刷新按钮样式 */
+.refresh-btn {
+    background-color: #3949ab;
+    color: white;
+    border: none;
+    border-radius: 20px;
+    padding: 8px 15px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.refresh-btn:hover {
+    background-color: #5c6bc0;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+}
+
+.refresh-btn:disabled {
+    background-color: #9fa8da;
+    cursor: wait;
+}
+
+.refresh-btn i {
+    font-size: 14px;
+}
+
+/* 刷新通知样式 */
+.refresh-notification {
+    background-color: #e6f7ea;
+    color: #28a745;
+    padding: 8px 15px;
+    border-radius: 20px;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    transition: opacity 0.5s ease;
+}
+
+.refresh-notification i {
+    font-size: 16px;
+}
+
+/* 相似电影推荐区域标题 */
+.similar-movies .section-title {
+    margin: 0;
+    padding: 0;
+    border-bottom: none;
+}
+
+/* 保持原有的相似电影样式 */
+#similar-movies-container {
+    opacity: 1;
+    transition: opacity 0.3s ease;
+}

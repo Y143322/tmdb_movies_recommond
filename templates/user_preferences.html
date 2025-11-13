@@ -1,0 +1,247 @@
+{% extends 'base.html' %}
+
+{% block title %}您的电影类型偏好{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css">
+<style>
+    .genre-preference {
+        margin-bottom: 15px;
+    }
+    
+    .genre-name {
+        font-weight: 500;
+        font-size: 16px;
+    }
+    
+    .genre-score {
+        font-weight: bold;
+        padding: 5px 10px;
+        border-radius: 15px;
+    }
+    
+    .progress {
+        height: 10px;
+        border-radius: 5px;
+        margin-top: 5px;
+    }
+    
+    .progress-bar {
+        border-radius: 5px;
+        transition: width 1s ease;
+    }
+    
+    .badge {
+        padding: 5px 10px;
+        margin-right: 5px;
+    }
+    
+    .bg-danger {
+        background-color: #dc3545;
+    }
+    
+    .bg-warning {
+        background-color: #ffc107;
+    }
+    
+    .bg-success {
+        background-color: #28a745;
+    }
+    
+    .bg-primary {
+        background-color: #3949ab;
+    }
+    
+    .card {
+        border-radius: 10px;
+        margin-bottom: 20px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    
+    .card-body {
+        padding: 20px;
+    }
+    
+    .text-muted {
+        color: #6c757d;
+    }
+    
+    .text-center {
+        text-align: center;
+    }
+    
+    .mt-4 {
+        margin-top: 1.5rem;
+    }
+    
+    .mb-4 {
+        margin-bottom: 1.5rem;
+    }
+    
+    .mb-3 {
+        margin-bottom: 1rem;
+    }
+    
+    .mb-1 {
+        margin-bottom: 0.25rem;
+    }
+    
+    .ml-2 {
+        margin-left: 0.5rem;
+    }
+    
+    .btn {
+        display: inline-block;
+        font-weight: 400;
+        text-align: center;
+        white-space: nowrap;
+        vertical-align: middle;
+        user-select: none;
+        border: 1px solid transparent;
+        padding: 0.375rem 0.75rem;
+        font-size: 1rem;
+        line-height: 1.5;
+        border-radius: 0.25rem;
+        transition: color 0.15s ease-in-out, background-color 0.15s ease-in-out, border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+        margin: 5px;
+    }
+    
+    .btn-primary {
+        color: #fff;
+        background-color: #3949ab;
+        border-color: #3949ab;
+    }
+    
+    .btn-outline-primary {
+        color: #3949ab;
+        background-color: transparent;
+        background-image: none;
+        border-color: #3949ab;
+    }
+    
+    .alert {
+        position: relative;
+        padding: 0.75rem 1.25rem;
+        margin-bottom: 1rem;
+        border: 1px solid transparent;
+        border-radius: 0.25rem;
+    }
+    
+    .alert-info {
+        color: #0c5460;
+        background-color: #d1ecf1;
+        border-color: #bee5eb;
+    }
+    
+    .d-flex {
+        display: flex;
+    }
+    
+    .justify-content-between {
+        justify-content: space-between;
+    }
+    
+    .align-items-center {
+        align-items: center;
+    }
+    
+    .shadow-sm {
+        box-shadow: 0 .125rem .25rem rgba(0,0,0,.075)!important;
+    }
+    
+    hr {
+        margin-top: 1rem;
+        margin-bottom: 1rem;
+        border: 0;
+        border-top: 1px solid rgba(0,0,0,.1);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h2 style="text-align: center; margin: 20px 0;">您的电影类型偏好</h2>
+    
+    <div style="margin: 0 auto; max-width: 800px;">
+        <p style="color: #666; text-align: center; margin-bottom: 30px;">
+            根据您的评分历史，我们分析出您对不同类型电影的偏好程度。
+            这些数据将用于为您提供更加个性化的电影推荐。
+        </p>
+    
+        {% if user_genres %}
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title mb-3">您最喜欢的电影类型</h5>
+                    
+                    {% for genre in user_genres %}
+                        <div class="genre-preference mb-3">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <span class="genre-name">{{ genre.name }}</span>
+                                <span class="genre-score badge {{ genre.badge_class }}">{{ genre.score | round(1) }}</span>
+                            </div>
+                            <div class="progress">
+                                <div class="progress-bar {{ genre.progress_class }}" role="progressbar" 
+                                     data-percentage="{{ genre.percentage }}"
+                                     style="width: 0%;" 
+                                     aria-valuenow="{{ genre.score }}" aria-valuemin="0" aria-valuemax="10">
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+            
+            <div class="card mt-4">
+                <div class="card-body">
+                    <h5 class="card-title">偏好分数说明</h5>
+                    <ul style="list-style-type: none; padding-left: 0;">
+                        <li><span class="badge bg-danger">1-3</span> - 不太喜欢</li>
+                        <li><span class="badge bg-warning">4-6</span> - 一般喜欢</li>
+                        <li><span class="badge bg-success">7-8</span> - 比较喜欢</li>
+                        <li><span class="badge bg-primary">9-10</span> - 非常喜欢</li>
+                    </ul>
+                    <p style="color: #888; font-size: 14px; margin-top: 15px;">
+                        偏好分数根据您对该类型电影的评分和评分数量综合计算。
+                        分数越高，表示您对该类型的偏好越强。
+                    </p>
+                </div>
+            </div>
+            
+            <div class="text-center mt-4">
+                <a href="{{ url_for('main.user_ratings') }}" class="btn btn-outline-primary">查看我的评分历史</a>
+                <a href="{{ url_for('main.refresh_user_preferences') }}" class="btn btn-primary">刷新偏好数据</a>
+            </div>
+        {% else %}
+            <div class="alert alert-info">
+                <h4 style="margin-top: 0;">暂无偏好数据</h4>
+                <p>我们尚未收集到足够的评分数据来分析您的电影类型偏好。</p>
+                <hr>
+                <p style="margin-bottom: 0;">请尝试对更多不同类型的电影进行评分，系统将自动分析您的偏好。</p>
+            </div>
+            
+            <div class="text-center mt-4">
+                <a href="{{ url_for('movies.show_movies_root', page=1) }}" class="btn btn-primary">浏览电影</a>
+                <a href="{{ url_for('main.refresh_user_preferences') }}" class="btn btn-outline-primary">立即分析偏好</a>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+    // 确保进度条正确显示
+    document.addEventListener('DOMContentLoaded', function() {
+        // 先设置所有进度条宽度为0
+        const progressBars = document.querySelectorAll('.progress-bar');
+        
+        // 延迟一小段时间后再设置实际宽度，以便触发过渡动画
+        setTimeout(function() {
+            progressBars.forEach(function(bar) {
+                const percentage = bar.getAttribute('data-percentage');
+                if (percentage) {
+                    bar.style.width = percentage + '%';
+                }
+            });
+        }, 100);
+    });
+</script>
+{% endblock %} 

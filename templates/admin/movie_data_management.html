@@ -1,0 +1,880 @@
+{% extends "admin/admin_base.html" %}
+
+{% block page_title %}电影数据管理{% endblock %}
+
+{% block admin_content %}
+<div class="movie-data-management-container">
+    <p>管理电影数据管理，支持批量更新和自定义条件抓取。</p>
+    
+    <!-- 选项卡导航 -->
+    <div class="tab-navigation">
+        <a href="#" class="tab-item active" data-tab="custom-fetch">自定义抓取</a>
+        <a href="#" class="tab-item" data-tab="batch-update">批量更新</a>
+        <a href="#" class="tab-item" data-tab="popularity-update">热度更新</a>
+    </div>
+    
+    <!-- 自定义抓取选项卡内容 -->
+    <div class="tab-content active" id="custom-fetch">
+        <form id="fetch-form" class="filter-form">
+            <div class="form-group">
+                <label>关键词搜索：</label>
+                <input type="text" name="keyword" placeholder="电影名称、关键词等">
+                <p class="field-tip">搜索包含指定字符的电影，如"功夫"、"星际"等</p>
+            </div>
+            
+            <div class="form-group">
+                <label>导演：</label>
+                <input type="text" name="director" placeholder="电影导演姓名">
+                <p class="field-tip">搜索指定导演的作品，如"克里斯托弗·诺兰"，"宫崎骏"</p>
+            </div>
+            
+            <div class="form-group">
+                <label>演员：</label>
+                <input type="text" name="actor" placeholder="演员姓名">
+                <p class="field-tip">搜索包含特定演员的电影，如"汤姆·克鲁斯"、"章子怡"</p>
+            </div>
+            
+            <div class="form-group">
+                <label>语言：</label>
+                <select name="language">
+                    <option value="">-- 选择语言 --</option>
+                    <option value="zh">中文</option>
+                    <option value="en">英文</option>
+                    <option value="ja">日语</option>
+                    <option value="ko">韩语</option>
+                    <option value="fr">法语</option>
+                    <option value="es">西班牙语</option>
+                </select>
+                <p class="field-tip">选择电影的主要语言</p>
+            </div>
+            
+            <div class="form-group">
+                <label>制作国家/地区：</label>
+                <select name="region">
+                    <option value="">-- 选择国家/地区 --</option>
+                    <option value="CN">中国大陆</option>
+                    <option value="HK">中国香港</option>
+                    <option value="TW">中国台湾</option>
+                    <option value="US">美国</option>
+                    <option value="JP">日本</option>
+                    <option value="KR">韩国</option>
+                    <option value="FR">法国</option>
+                    <option value="GB">英国</option>
+                </select>
+                <p class="field-tip">选择电影的制作国家或地区</p>
+            </div>
+            
+            <div class="form-group">
+                <label>最低评分：</label>
+                <input type="number" name="min_rating" min="0" max="10" step="0.1" placeholder="0-10">
+                <p class="field-tip">筛选不低于指定评分的电影，范围0-10</p>
+            </div>
+            
+            <div class="form-group">
+                <label>电影类型：</label>
+                <select name="genre">
+                    <option value="">-- 选择类型 --</option>
+                    <option value="28">动作</option>
+                    <option value="12">冒险</option>
+                    <option value="16">动画</option>
+                    <option value="35">喜剧</option>
+                    <option value="80">犯罪</option>
+                    <option value="99">纪录片</option>
+                    <option value="18">剧情</option>
+                    <option value="10751">家庭</option>
+                    <option value="14">奇幻</option>
+                    <option value="36">历史</option>
+                    <option value="27">恐怖</option>
+                    <option value="10402">音乐</option>
+                    <option value="9648">悬疑</option>
+                    <option value="10749">爱情</option>
+                    <option value="878">科幻</option>
+                    <option value="10770">电视电影</option>
+                    <option value="53">惊悚</option>
+                    <option value="10752">战争</option>
+                    <option value="37">西部</option>
+                </select>
+                <p class="field-tip">选择指定类型的电影</p>
+            </div>
+            
+            <div class="form-group">
+                <label>发行年份：</label>
+                <input type="text" name="year" placeholder="如 2023">
+                <p class="field-tip">搜索特定年份发行的电影</p>
+            </div>
+            
+            <div class="form-group">
+                <label>爬取页数：</label>
+                <input type="number" name="page_count" min="1" max="5" value="2">
+                <p class="field-tip">一次性爬取多少页结果，建议1-5页</p>
+            </div>
+            
+            <div class="form-actions">
+                <button type="button" id="start-fetch-button" class="action-btn">
+                    <i class="fas fa-play"></i> 开始抓取
+                </button>
+                <button type="reset" class="action-btn warning-btn">
+                    <i class="fas fa-undo"></i> 重置表单
+                </button>
+            </div>
+        </form>
+    </div>
+    
+    <!-- 批量更新选项卡内容 -->
+    <div class="tab-content" id="batch-update">
+        <p>点击下方按钮开始更新电影数据库。系统将从TMDB获取最新的电影信息。</p>
+        
+        <button id="start-update-button" class="action-btn" onclick="startUpdate()">
+            <i class="fas fa-sync-alt"></i> 开始更新
+        </button>
+
+        <button id="reset-button" class="action-btn warning-btn" onclick="resetScraperState()" style="display: none;">
+            <i class="fas fa-sync"></i> 重置爬虫状态
+        </button>
+
+        <div id="update-progress-section" style="display: none;">
+            <h3>更新进度</h3>
+            <div class="progress-container">
+                <div class="progress-bar">
+                    <div id="progress-bar-fill" class="progress-bar-fill" style="width: 0%;">0%</div>
+                </div>
+                <div id="progress-status" class="progress-status">正在加载状态...</div>
+            </div>
+            <button id="stop-update-button" class="action-btn cancel-btn" onclick="stopScraper()" style="display: none;">
+                <i class="fas fa-stop"></i> 停止更新
+            </button>
+        </div>
+    </div>
+    
+    <!-- 热度更新选项卡内容 -->
+    <div class="tab-content" id="popularity-update">
+        <div class="info-box">
+            <h3>电影热度动态更新</h3>
+            <p>此功能将根据用户近期行为数据重新计算所有电影的热度值，用于推荐系统排序和展示。</p>
+            <p>热度计算会综合考虑以下因素：</p>
+            <ul>
+                <li>最近30天的用户评分数量和质量</li>
+                <li>最近30天的观看次数</li>
+                <li>最近30天的评论数量</li>
+                <li>最近30天的评论点赞数</li>
+                <li>原有的热度基础值</li>
+            </ul>
+            <p class="note">注：系统会每天凌晨2点自动执行一次热度更新，此处可手动触发立即更新。</p>
+        </div>
+        
+        <div class="action-section">
+            <button id="update-popularity-button" class="action-btn" onclick="updateMoviePopularity()">
+                <i class="fas fa-fire"></i> 立即更新电影热度
+            </button>
+            
+            <div id="popularity-update-status" class="update-status" style="display: none;">
+                <div class="status-icon">
+                    <i class="fas fa-spinner fa-spin"></i>
+                </div>
+                <div class="status-message">正在更新电影热度...</div>
+            </div>
+            
+            <div id="popularity-update-result" class="update-result" style="display: none;">
+                <div class="result-icon success">
+                    <i class="fas fa-check-circle"></i>
+                </div>
+                <div class="result-message">电影热度更新成功！</div>
+                <div class="result-time"></div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 调试信息区域 -->
+    <div id="debug-info" style="margin-top: 20px; padding: 10px; border: 1px solid #ddd; background-color: #f9f9f9; font-family: monospace; font-size: 12px; max-height: 200px; overflow: auto; display: none;">
+        <strong>调试信息：</strong><br>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+    let progressInterval = null;
+    const progressBarFill = document.getElementById('progress-bar-fill');
+    const progressStatus = document.getElementById('progress-status');
+    const startButton = document.getElementById('start-update-button');
+    const resetButton = document.getElementById('reset-button');
+    const progressSection = document.getElementById('update-progress-section');
+    const stopButton = document.getElementById('stop-update-button');
+    const debugInfoDiv = document.getElementById('debug-info');
+    
+    // 标签切换功能
+    document.addEventListener('DOMContentLoaded', function() {
+        // 标签切换
+        const tabItems = document.querySelectorAll('.tab-item');
+        const tabContents = document.querySelectorAll('.tab-content');
+        
+        tabItems.forEach(item => {
+            item.addEventListener('click', function(e) {
+                e.preventDefault();
+                
+                // 移除所有活动标签和内容
+                tabItems.forEach(tab => tab.classList.remove('active'));
+                tabContents.forEach(content => content.classList.remove('active'));
+                
+                // 激活当前标签和内容
+                this.classList.add('active');
+                const tabId = this.getAttribute('data-tab');
+                document.getElementById(tabId).classList.add('active');
+            });
+        });
+        
+        // 自定义抓取功能
+        document.getElementById('start-fetch-button').addEventListener('click', function() {
+            startCustomFetch();
+        });
+        
+        // 检查任务进度
+        checkTaskProgress();
+    });
+    
+    function logDebug(message) {
+        const now = new Date();
+        const timestamp = `${now.getHours()}:${now.getMinutes()}:${now.getSeconds()}`;
+        const logLine = document.createElement('div');
+        logLine.textContent = `[${timestamp}] ${message}`;
+        debugInfoDiv.appendChild(logLine);
+        debugInfoDiv.scrollTop = debugInfoDiv.scrollHeight;
+    }
+    
+    function startCustomFetch() {
+        // 获取表单数据
+        const form = document.getElementById('fetch-form');
+        const formData = new FormData(form);
+        const data = Object.fromEntries(formData.entries());
+        
+        // 显示调试信息
+        debugInfoDiv.style.display = 'block';
+        logDebug(`准备发送自定义抓取请求: ${JSON.stringify(data)}`);
+        
+        // 发送请求到后端
+        fetch('{{ url_for("admin.custom_fetch") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(data)
+        })
+        .then(response => response.json())
+        .then(data => {
+            logDebug(`收到自定义抓取响应：${JSON.stringify(data)}`);
+            if (data.success) {
+                alert(data.message);
+                // 切换到批量更新标签，开始查看进度
+                document.querySelector('.tab-item[data-tab="batch-update"]').click();
+                progressSection.style.display = 'block';
+                startButton.style.display = 'none';
+                checkTaskProgress();
+            } else {
+                alert('启动自定义抓取失败: ' + data.message);
+            }
+        })
+        .catch(error => {
+            logDebug(`自定义抓取请求出错: ${error}`);
+            console.error('请求自定义抓取接口失败:', error);
+            alert('启动自定义抓取时发生网络错误，请稍后重试。');
+        });
+    }
+    
+    function startUpdate(forceReset = false) {
+        if (!startButton || startButton.disabled) return;
+
+        startButton.disabled = true;
+        startButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 正在启动...';
+        progressSection.style.display = 'block';
+        updateProgressBar({ current: 0, status: 'starting', message: '正在启动更新任务...' });
+        
+        // 显示调试信息
+        debugInfoDiv.style.display = 'block';
+        logDebug(`发送启动更新请求，强制重置=${forceReset}`);
+
+        fetch('{{ url_for("admin.update_movies") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ force_reset: forceReset })
+        })
+        .then(response => response.json())
+        .then(data => {
+            logDebug(`收到启动响应：${JSON.stringify(data)}`);
+            if (data.success) {
+                progressStatus.textContent = data.message;
+                startButton.style.display = 'none'; // Hide start button
+                checkTaskProgress(); // Start checking progress immediately
+            } else {
+                logDebug(`启动失败: ${data.message}`);
+                alert('启动更新失败: ' + data.message);
+                resetStartButton();
+                progressSection.style.display = 'none';
+            }
+        })
+        .catch(error => {
+            logDebug(`启动请求出错: ${error}`);
+            console.error('请求更新接口失败:', error);
+            alert('启动更新时发生网络错误，请稍后重试。');
+            resetStartButton();
+            progressSection.style.display = 'none';
+        });
+    }
+
+    function resetScraperState() {
+        if (!resetButton || resetButton.disabled) return;
+        
+        if (!confirm('确定要重置爬虫状态吗？这将清除任何正在进行的更新任务。')) {
+            return;
+        }
+        
+        resetButton.disabled = true;
+        startButton.disabled = true;
+        resetButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 正在重置...';
+        
+        // 显示调试信息
+        debugInfoDiv.style.display = 'block';
+        logDebug('发送重置爬虫状态请求');
+        
+        fetch('{{ url_for("admin.reset_scraper") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(data.message);
+                // 重新启用启动按钮，允许用户启动新的任务
+                resetStartButton();
+                resetButton.innerHTML = '<i class="fas fa-sync"></i> 重置爬虫状态';
+                resetButton.disabled = false;
+                // 自动刷新页面状态
+                checkTaskProgress();
+            } else {
+                alert('重置失败: ' + data.message);
+                resetButton.innerHTML = '<i class="fas fa-sync"></i> 重置爬虫状态';
+                resetButton.disabled = false;
+                startButton.disabled = false;
+            }
+        })
+        .catch(error => {
+            console.error('请求重置接口失败:', error);
+            alert('重置时发生网络错误，请稍后重试。');
+            resetButton.innerHTML = '<i class="fas fa-sync"></i> 重置爬虫状态';
+            resetButton.disabled = false;
+            startButton.disabled = false;
+        });
+    }
+
+    function checkTaskProgress() {
+        fetch('{{ url_for("admin.scraper_progress") }}')
+            .then(response => response.json())
+            .then(data => {
+                debugInfoDiv.style.display = 'block';
+                logDebug(`进度数据: status=${data.status}, current=${data.current}, processed=${data.processed_movies}/${data.target_movies}`);
+                
+                if (data.status === 'running') {
+                    progressSection.style.display = 'block';
+                    startButton.style.display = 'none'; // Ensure start button is hidden
+                    stopButton.style.display = 'inline-block'; // Show stop button when running
+                    resetButton.style.display = 'none'; // Hide reset button when running
+                    updateProgressBar(data);
+                    if (!progressInterval) { // Start polling only if not already polling
+                        logDebug('启动进度轮询');
+                        startProgressCheck();
+                    }
+                } else { // Idle, completed, or error
+                    logDebug(`爬虫状态非运行中: ${data.status}`);
+                    if (data.status === 'idle') {
+                        logDebug('爬虫空闲中');
+                    }
+                    
+                    // Show reset button if needed
+                    resetButton.style.display = 'inline-block';
+                    progressSection.style.display = 'none'; // Hide progress if not running
+                    startButton.style.display = 'inline-block'; // Show start button if idle
+                    stopButton.style.display = 'none'; // Hide stop button if not running
+                    
+                    resetStartButton();
+                    if (progressInterval) {
+                         clearInterval(progressInterval);
+                         progressInterval = null;
+                         logDebug('停止进度轮询');
+                    }
+                    if (data.status === 'completed' || data.status === 'error') {
+                        let finalMessage = data.status === 'completed' ? '上次更新已完成。' : `上次更新出错: ${data.message}`;
+                        logDebug(finalMessage);
+                    }
+                }
+            })
+            .catch(error => {
+                logDebug(`获取进度失败: ${error}`);
+                console.error('检查任务进度失败:', error);
+                progressStatus.textContent = '无法获取更新状态。';
+                startButton.style.display = 'inline-block'; // Allow retry
+                stopButton.style.display = 'none'; // Hide stop button on error
+                resetStartButton();
+                progressSection.style.display = 'none';
+            });
+    }
+
+    function startProgressCheck() {
+        if (progressInterval) return;
+        progressInterval = setInterval(checkTaskProgress, 2000); // Poll every 2 seconds
+    }
+
+    function updateProgressBar(data) {
+        let percent = data.current || 0;
+        percent = Math.max(0, Math.min(100, percent));
+        progressBarFill.style.width = percent + '%';
+        progressBarFill.textContent = Math.round(percent) + '%';
+
+        let statusText = '';
+        switch (data.status) {
+            case 'starting': statusText = data.message || '正在启动...'; break;
+            case 'idle': statusText = '等待任务'; break;
+            case 'running':
+                // 构建更详细的状态信息
+                let details = [];
+                
+                // 添加页面信息
+                if (data.last_page && data.total_pages) {
+                    details.push(`页面进度: ${data.last_page}/${data.total_pages} 页`);
+                }
+                
+                // 添加电影处理数量
+                if (data.processed_movies !== undefined && data.target_movies !== undefined) {
+                    details.push(`处理电影: ${data.processed_movies}/${data.target_movies} 部`);
+                }
+                
+                // 尝试解析消息中的其他统计信息
+                let statsMatch = null;
+                if (data.message) {
+                    statsMatch = data.message.match(/已存在跳过\s+(\d+)\s+部/);
+                    if (statsMatch && statsMatch[1]) {
+                        details.push(`已跳过: ${statsMatch[1]} 部`);
+                    }
+                    
+                    // 检查是否有失败信息
+                    let failedMatch = data.message.match(/处理失败\s+(\d+)\s+部/);
+                    if (failedMatch && failedMatch[1]) {
+                        details.push(`处理失败: ${failedMatch[1]} 部`);
+                    }
+                }
+                
+                // 构建详细状态信息
+                statusText = `<div class="status-header">正在更新中... (${Math.round(percent)}%)</div>`;
+                if (details.length > 0) {
+                    statusText += `<div class="status-details">${details.join(' | ')}</div>`;
+                }
+                
+                // 添加最新消息
+                if (data.message) {
+                    statusText += `<div class="status-message">${data.message}</div>`;
+                }
+                break;
+            case 'completed':
+                statusText = '<div class="status-header status-success">更新已完成！</div>';
+                if (data.message) {
+                    statusText += `<div class="status-details">${data.message}</div>`;
+                } else if (data.processed_movies) {
+                    statusText += `<div class="status-details">共处理 ${data.processed_movies} 部电影。</div>`;
+                }
+                alert('电影数据更新完成！'); // Notify user
+                resetStartButton();
+                startButton.style.display = 'inline-block'; // Show start button again
+                stopButton.style.display = 'none'; // Hide stop button
+                break;
+            case 'error':
+                statusText = '<div class="status-header status-error">更新过程中出错:</div>';
+                statusText += `<div class="status-message">${data.message || '未知错误'}</div>`;
+                resetStartButton();
+                startButton.style.display = 'inline-block';
+                stopButton.style.display = 'none';
+                break;
+        }
+        
+        progressStatus.innerHTML = statusText; // 使用innerHTML以支持HTML格式
+    }
+
+    function resetStartButton() {
+        startButton.disabled = false;
+        startButton.innerHTML = '<i class="fas fa-sync-alt"></i> 开始更新';
+    }
+    
+    function stopScraper() {
+        if (!confirm('确定要停止当前更新任务吗？')) return;
+        
+        stopButton.disabled = true;
+        stopButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 正在停止...';
+        
+        logDebug('发送停止爬虫请求');
+        
+        fetch('{{ url_for("admin.stop_scraper") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            logDebug(`收到停止响应: ${JSON.stringify(data)}`);
+            if (data.success) {
+                alert(data.message);
+                // 继续检查进度，直到状态变为非运行中
+                checkTaskProgress();
+            } else {
+                alert('停止任务失败: ' + data.message);
+            }
+            stopButton.disabled = false;
+            stopButton.innerHTML = '<i class="fas fa-stop"></i> 停止更新';
+        })
+        .catch(error => {
+            logDebug(`停止请求出错: ${error}`);
+            console.error('请求停止接口失败:', error);
+            alert('停止任务时发生网络错误，请稍后重试。');
+            stopButton.disabled = false;
+            stopButton.innerHTML = '<i class="fas fa-stop"></i> 停止更新';
+        });
+    }
+
+    // 电影热度更新功能
+    function updateMoviePopularity() {
+        const updateButton = document.getElementById('update-popularity-button');
+        const updateStatus = document.getElementById('popularity-update-status');
+        const updateResult = document.getElementById('popularity-update-result');
+        
+        // 禁用按钮并显示更新状态
+        updateButton.disabled = true;
+        updateStatus.style.display = 'flex';
+        updateResult.style.display = 'none';
+        
+        // 发送请求到后端
+        fetch('{{ url_for("admin.trigger_update_movie_popularity") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            // 隐藏更新状态
+            updateStatus.style.display = 'none';
+            
+            // 显示更新结果
+            updateResult.style.display = 'flex';
+            const resultIcon = updateResult.querySelector('.result-icon');
+            const resultMessage = updateResult.querySelector('.result-message');
+            const resultTime = updateResult.querySelector('.result-time');
+            
+            if (data.status === 'success') {
+                resultIcon.className = 'result-icon success';
+                resultIcon.innerHTML = '<i class="fas fa-check-circle"></i>';
+                resultMessage.textContent = '电影热度更新成功！';
+            } else {
+                resultIcon.className = 'result-icon error';
+                resultIcon.innerHTML = '<i class="fas fa-times-circle"></i>';
+                resultMessage.textContent = '电影热度更新失败：' + data.message;
+            }
+            
+            // 添加时间戳
+            const now = new Date();
+            resultTime.textContent = `更新时间：${now.toLocaleString()}`;
+            
+            // 启用按钮
+            updateButton.disabled = false;
+        })
+        .catch(error => {
+            console.error('更新电影热度失败:', error);
+            
+            // 隐藏更新状态
+            updateStatus.style.display = 'none';
+            
+            // 显示错误结果
+            updateResult.style.display = 'flex';
+            const resultIcon = updateResult.querySelector('.result-icon');
+            const resultMessage = updateResult.querySelector('.result-message');
+            const resultTime = updateResult.querySelector('.result-time');
+            
+            resultIcon.className = 'result-icon error';
+            resultIcon.innerHTML = '<i class="fas fa-times-circle"></i>';
+            resultMessage.textContent = '更新过程中发生网络错误，请稍后重试';
+            
+            // 添加时间戳
+            const now = new Date();
+            resultTime.textContent = `尝试时间：${now.toLocaleString()}`;
+            
+            // 启用按钮
+            updateButton.disabled = false;
+        });
+    }
+</script>
+
+<style>
+    .movie-data-management-container {
+        background-color: #fff;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        padding: 20px;
+    }
+    
+    /* 选项卡导航 */
+    .tab-navigation {
+        display: flex;
+        border-bottom: 2px solid #e0e0e0;
+        margin-bottom: 20px;
+    }
+    
+    .tab-item {
+        padding: 10px 20px;
+        margin-right: 5px;
+        border-radius: 4px 4px 0 0;
+        cursor: pointer;
+        color: #555;
+        font-weight: 500;
+        text-decoration: none;
+    }
+    
+    .tab-item.active {
+        background-color: #1a237e;
+        color: white;
+    }
+    
+    /* 选项卡内容 */
+    .tab-content {
+        display: none;
+    }
+    
+    .tab-content.active {
+        display: block;
+    }
+    
+    /* 表单样式 */
+    .filter-form {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 15px;
+    }
+    
+    .form-group {
+        margin-bottom: 15px;
+    }
+    
+    .form-group label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: 500;
+    }
+    
+    .form-group input,
+    .form-group select {
+        width: 100%;
+        padding: 8px 12px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 14px;
+    }
+    
+    .field-tip {
+        font-size: 12px;
+        color: #777;
+        margin-top: 5px;
+    }
+    
+    .form-actions {
+        grid-column: span 2;
+        display: flex;
+        gap: 10px;
+        margin-top: 10px;
+    }
+    
+    /* 进度条 */
+    .progress-container {
+        margin: 20px 0;
+        background-color: #f0f0f0;
+        border-radius: 5px;
+        overflow: hidden;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        width: 100%; /* 确保进度条占满整个容器宽度 */
+    }
+    
+    .progress-bar {
+        background-color: #e0e0e0;
+        height: 25px; /* 增大高度 */
+        width: 100%;
+        position: relative;
+        overflow: hidden;
+        border-radius: 4px;
+    }
+    
+    .progress-bar-fill {
+        background: linear-gradient(to right, #1a73e8, #4285f4); /* 渐变蓝色背景 */
+        height: 100%;
+        color: white;
+        text-align: center;
+        line-height: 25px; /* 与高度匹配 */
+        font-weight: bold;
+        transition: width 0.5s ease; /* 平滑过渡效果 */
+        text-shadow: 0 0 2px rgba(0, 0, 0, 0.5); /* 文字阴影提高可读性 */
+        min-width: 30px; /* 确保即使进度很小，也能看到百分比 */
+    }
+    
+    .progress-status {
+        margin-top: 10px;
+        padding: 10px;
+        background-color: #f9f9f9;
+        border: 1px solid #e0e0e0;
+        border-radius: 4px;
+        font-size: 14px;
+        line-height: 1.5;
+        max-height: 150px; /* 限制高度 */
+        overflow-y: auto; /* 内容太多时可滚动 */
+        white-space: pre-line; /* 保留换行符 */
+    }
+    
+    /* 按钮样式 */
+    .action-btn {
+        padding: 8px 16px;
+        border: none;
+        border-radius: 4px;
+        background-color: #1a237e;
+        color: white;
+        cursor: pointer;
+        font-size: 14px;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        transition: background-color 0.3s;
+    }
+    
+    .action-btn:hover {
+        background-color: #3949ab;
+    }
+    
+    .warning-btn {
+        background-color: #ff9800;
+    }
+    
+    .warning-btn:hover {
+        background-color: #fb8c00;
+    }
+    
+    .cancel-btn {
+        background-color: #f44336;
+    }
+    
+    .cancel-btn:hover {
+        background-color: #e53935;
+    }
+    
+    /* 响应式设计 */
+    @media (max-width: 768px) {
+        .filter-form {
+            grid-template-columns: 1fr;
+        }
+        
+        .form-actions {
+            grid-column: 1;
+        }
+    }
+
+    .status-header {
+        font-weight: bold;
+        font-size: 16px;
+        margin-bottom: 8px;
+        color: #333;
+    }
+
+    .status-details {
+        font-size: 14px;
+        margin-bottom: 8px;
+        color: #555;
+        padding: 6px;
+        background-color: #f0f5ff;
+        border-radius: 4px;
+    }
+
+    .status-message {
+        font-size: 13px;
+        color: #666;
+        padding: 4px 0;
+        word-break: break-word;
+    }
+
+    .status-success {
+        color: #0d904f;
+    }
+
+    .status-error {
+        color: #d32f2f;
+    }
+
+    /* 热度更新相关样式 */
+    .info-box {
+        background-color: #f8f9fa;
+        border: 1px solid #e9ecef;
+        border-radius: 5px;
+        padding: 15px;
+        margin-bottom: 20px;
+    }
+    
+    .info-box h3 {
+        margin-top: 0;
+        color: #343a40;
+    }
+    
+    .info-box ul {
+        margin-left: 20px;
+    }
+    
+    .note {
+        font-style: italic;
+        color: #6c757d;
+        margin-top: 15px;
+    }
+    
+    .action-section {
+        margin-top: 20px;
+    }
+    
+    .update-status, .update-result {
+        display: flex;
+        align-items: center;
+        margin-top: 15px;
+        padding: 10px;
+        border-radius: 5px;
+    }
+    
+    .update-status {
+        background-color: #e9f5fe;
+    }
+    
+    .update-result {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    
+    .status-icon, .result-icon {
+        margin-right: 10px;
+        font-size: 1.5em;
+    }
+    
+    .result-icon.success {
+        color: #28a745;
+    }
+    
+    .result-icon.error {
+        color: #dc3545;
+    }
+    
+    .result-time {
+        font-size: 0.8em;
+        color: #6c757d;
+        margin-top: 5px;
+    }
+</style>
+{% endblock %} 

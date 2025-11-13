@@ -1,0 +1,478 @@
+{% extends "admin/admin_base.html" %}
+
+{% block page_title %}电影列表{% endblock %}
+
+{% block admin_content %}
+<div class="movies-admin-container">
+    <div class="header">
+        <h2>电影管理</h2>
+    </div>
+
+    <!-- 搜索表单 -->
+    <div class="search-container">
+        <form action="{{ url_for('admin.movies') }}" method="GET" class="search-form">
+            <div class="search-fields">
+                <div class="search-field">
+                    <label for="title">电影标题:</label>
+                    <input type="text" id="title" name="title" value="{{ request.args.get('title', '') }}" placeholder="输入电影标题...">
+                </div>
+                <div class="search-field">
+                    <label for="genre">电影类型:</label>
+                    <input type="text" id="genre" name="genre" value="{{ request.args.get('genre', '') }}" placeholder="如：动作、科幻、喜剧...">
+                </div>
+                <div class="search-field rating-range">
+                    <label>评分范围:</label>
+                    <div class="range-inputs">
+                        <input type="number" id="min_rating" name="min_rating" min="0" max="10" step="0.1" value="{{ request.args.get('min_rating', '') }}" placeholder="最低" class="small-input">
+                        <span>至</span>
+                        <input type="number" id="max_rating" name="max_rating" min="0" max="10" step="0.1" value="{{ request.args.get('max_rating', '') }}" placeholder="最高" class="small-input">
+                    </div>
+                </div>
+            </div>
+            <div class="search-actions">
+                {% if sort %}<input type="hidden" name="sort" value="{{ sort }}">{% endif %}
+                {% if order %}<input type="hidden" name="order" value="{{ order }}">{% endif %}
+                <button type="submit" class="search-btn"><i class="fas fa-search"></i> 搜索</button>
+                <a href="{{ url_for('admin.movies') }}" class="reset-btn"><i class="fas fa-undo"></i> 重置</a>
+            </div>
+        </form>
+    </div>
+    
+    <!-- 显示当前筛选条件 -->
+    {% if request.args.get('title') or request.args.get('genre') or request.args.get('min_rating') or request.args.get('max_rating') %}
+    <div class="filter-summary">
+        <span>当前筛选条件:</span>
+        {% if request.args.get('title') %}
+        <span class="filter-tag">标题: {{ request.args.get('title') }}</span>
+        {% endif %}
+        {% if request.args.get('genre') %}
+        <span class="filter-tag">类型: {{ request.args.get('genre') }}</span>
+        {% endif %}
+        {% if request.args.get('min_rating') or request.args.get('max_rating') %}
+        <span class="filter-tag">评分: 
+            {% if request.args.get('min_rating') and request.args.get('max_rating') %}
+                {{ request.args.get('min_rating') }} - {{ request.args.get('max_rating') }}
+            {% elif request.args.get('min_rating') %}
+                ≥ {{ request.args.get('min_rating') }}
+            {% elif request.args.get('max_rating') %}
+                ≤ {{ request.args.get('max_rating') }}
+            {% endif %}
+        </span>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <div class="movies-table-container">
+        <table class="movies-table">
+            <thead>
+                <tr>
+                    <th>
+                        ID
+                        <div class="sort-controls">
+                            <a href="{{ url_for('admin.movies', sort='id', order='asc', keyword=keyword) }}" class="sort-btn {% if sort == 'id' and order == 'asc' %}active{% endif %}">
+                                <i class="fas fa-sort-up"></i>
+                            </a>
+                            <a href="{{ url_for('admin.movies', sort='id', order='desc', keyword=keyword) }}" class="sort-btn {% if sort == 'id' and order == 'desc' %}active{% endif %}">
+                                <i class="fas fa-sort-down"></i>
+                            </a>
+                        </div>
+                    </th>
+                    <th>海报</th>
+                    <th>标题</th>
+                    <th>
+                        上映日期
+                        <div class="sort-controls">
+                            <a href="{{ url_for('admin.movies', sort='release_date', order='asc', keyword=keyword) }}" class="sort-btn {% if sort == 'release_date' and order == 'asc' %}active{% endif %}">
+                                <i class="fas fa-sort-up"></i>
+                            </a>
+                            <a href="{{ url_for('admin.movies', sort='release_date', order='desc', keyword=keyword) }}" class="sort-btn {% if sort == 'release_date' and order == 'desc' %}active{% endif %}">
+                                <i class="fas fa-sort-down"></i>
+                            </a>
+                        </div>
+                    </th>
+                    <th>
+                        评分
+                        <div class="sort-controls">
+                            <a href="{{ url_for('admin.movies', sort='vote_average', order='asc', keyword=keyword) }}" class="sort-btn {% if sort == 'vote_average' and order == 'asc' %}active{% endif %}">
+                                <i class="fas fa-sort-up"></i>
+                            </a>
+                            <a href="{{ url_for('admin.movies', sort='vote_average', order='desc', keyword=keyword) }}" class="sort-btn {% if sort == 'vote_average' and order == 'desc' %}active{% endif %}">
+                                <i class="fas fa-sort-down"></i>
+                            </a>
+                        </div>
+                    </th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for movie in movies %}
+                <tr class="movie-row">
+                    <td>{{ movie.id }}</td>
+                    <td class="movie-poster">
+                        {% if movie.poster_path %}
+                        <img src="{{ movie.poster_path }}" alt="{{ movie.title }}">
+                        {% else %}
+                        <div class="no-poster">无海报</div>
+                        {% endif %}
+                    </td>
+                    <td class="movie-title">{{ movie.title }}</td>
+                    <td>{{ movie.release_date }}</td>
+                    <td class="movie-score">{{ "%.1f"|format(movie.vote_average|float) if movie.vote_average else '暂无' }}</td>
+                    <td class="actions">
+                        <a href="{{ url_for('main.movie_detail', movie_id=movie.id) }}" class="view-btn" title="查看电影详情" target="_blank">
+                            <i class="fas fa-eye"></i>
+                        </a>
+                        <form action="{{ url_for('admin.delete_movie', movie_id=movie.id) }}" method="post" class="delete-form" onsubmit="return confirm('确定要删除《{{ movie.title }}》吗？此操作不可撤销。');">
+                            <button type="submit" class="delete-btn" title="删除电影">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- 分页导航 -->
+    {% if total_pages > 1 %}
+    <div class="pagination">
+        <!-- 上一页 -->
+        {% if page > 1 %}
+            <a href="{{ url_for('admin.movies', page=page-1, sort=sort, order=order, title=request.args.get('title', ''), genre=request.args.get('genre', ''), min_rating=request.args.get('min_rating', ''), max_rating=request.args.get('max_rating', '')) }}" class="page-link">&laquo; 上一页</a>
+        {% else %}
+            <span class="page-link disabled">&laquo; 上一页</span>
+        {% endif %}
+        
+        <!-- 页码 -->
+        {% set start_page = [page - 2, 1]|max %}
+        {% set end_page = [start_page + 4, total_pages]|min %}
+        {% set start_page = [end_page - 4, 1]|max %}
+        
+        {% for p in range(start_page, end_page + 1) %}
+            {% if p == page %}
+                <span class="page-link active">{{ p }}</span>
+            {% else %}
+                <a href="{{ url_for('admin.movies', page=p, sort=sort, order=order, title=request.args.get('title', ''), genre=request.args.get('genre', ''), min_rating=request.args.get('min_rating', ''), max_rating=request.args.get('max_rating', '')) }}" class="page-link">{{ p }}</a>
+            {% endif %}
+        {% endfor %}
+        
+        <!-- 下一页 -->
+        {% if page < total_pages %}
+            <a href="{{ url_for('admin.movies', page=page+1, sort=sort, order=order, title=request.args.get('title', ''), genre=request.args.get('genre', ''), min_rating=request.args.get('min_rating', ''), max_rating=request.args.get('max_rating', '')) }}" class="page-link">下一页 &raquo;</a>
+        {% else %}
+            <span class="page-link disabled">下一页 &raquo;</span>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+
+<style>
+    .movies-admin-container {
+        width: 100%;
+        background-color: #fff;
+        border-radius: 8px;
+        padding: 20px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    }
+
+    .header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+    }
+
+    .header h2 {
+        margin: 0;
+        font-size: 24px;
+        color: #333;
+    }
+
+    .search-container {
+        margin-bottom: 20px;
+        padding: 15px;
+        background-color: #f7f9fc;
+        border-radius: 6px;
+        border: 1px solid #e1e4e8;
+    }
+
+    .search-form {
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+        width: 100%;
+    }
+
+    .search-fields {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 15px;
+    }
+
+    .search-field {
+        flex: 1;
+        min-width: 200px;
+    }
+    
+    .search-field label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: 500;
+        color: #555;
+    }
+    
+    .search-field input, .search-field select {
+        width: 100%;
+        padding: 8px 12px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 14px;
+    }
+    
+    .search-field input:focus, .search-field select:focus {
+        border-color: #3498db;
+        box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+        outline: none;
+    }
+    
+    .range-inputs {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    
+    .small-input {
+        width: 80px !important;
+    }
+
+    .search-actions {
+        display: flex;
+        gap: 10px;
+        justify-content: flex-end;
+    }
+
+    .search-btn, .reset-btn {
+        padding: 8px 16px;
+        border-radius: 4px;
+        border: none;
+        font-size: 14px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        transition: all 0.3s;
+    }
+
+    .search-btn {
+        background-color: #3498db;
+        color: white;
+    }
+
+    .search-btn:hover {
+        background-color: #2980b9;
+    }
+
+    .reset-btn {
+        background-color: #f5f5f5;
+        color: #333;
+        text-decoration: none;
+    }
+
+    .reset-btn:hover {
+        background-color: #e5e5e5;
+    }
+
+    .filter-summary {
+        margin-bottom: 15px;
+        padding: 10px 15px;
+        background-color: #f0f7ff;
+        border-radius: 4px;
+        font-size: 14px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+    }
+
+    .filter-tag {
+        background-color: #e1f0ff;
+        color: #3498db;
+        padding: 5px 10px;
+        border-radius: 15px;
+        font-weight: 500;
+    }
+
+    .movies-table-container {
+        overflow-x: auto;
+    }
+
+    .movies-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .movies-table th, .movies-table td {
+        padding: 12px 15px;
+        text-align: left;
+        border-bottom: 1px solid #ddd;
+    }
+
+    .movies-table th {
+        background-color: #f5f5f5;
+        font-weight: bold;
+        color: #333;
+    }
+
+    .movies-table tr:hover {
+        background-color: #f9f9f9;
+    }
+
+    .movie-poster {
+        width: 80px;
+    }
+
+    .movie-poster img {
+        width: 60px;
+        height: 90px;
+        object-fit: cover;
+        border-radius: 4px;
+    }
+
+    .no-poster {
+        width: 60px;
+        height: 90px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background-color: #f0f0f0;
+        color: #999;
+        font-size: 12px;
+        border-radius: 4px;
+    }
+
+    .movie-title {
+        font-weight: bold;
+        max-width: 200px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .movie-score {
+        font-weight: bold;
+        color: #ffb400;
+    }
+
+    .actions {
+        white-space: nowrap;
+    }
+
+    .actions a {
+        display: inline-block;
+        padding: 5px 10px;
+        text-decoration: none;
+        border-radius: 4px;
+        margin-right: 5px;
+    }
+
+    .edit-btn {
+        color: #2196F3;
+    }
+
+    .view-btn {
+        color: #4CAF50;
+    }
+
+    .btn {
+        display: inline-block;
+        padding: 8px 16px;
+        background-color: #4CAF50;
+        color: white;
+        text-decoration: none;
+        border-radius: 4px;
+        border: none;
+        cursor: pointer;
+        font-weight: bold;
+    }
+
+    .btn-primary {
+        background-color: #4CAF50;
+        color: #fff;
+    }
+
+    .btn-primary:hover {
+        background-color: #45a049;
+    }
+
+    .sort-controls {
+        display: inline-block;
+        vertical-align: middle;
+        margin-left: 5px;
+    }
+
+    .sort-btn {
+        display: block;
+        font-size: 12px;
+        color: #666;
+        line-height: 8px;
+        text-decoration: none;
+    }
+
+    .sort-btn.active {
+        color: #4CAF50;
+    }
+
+    .sort-btn:hover {
+        color: #45a049;
+    }
+
+    th {
+        position: relative;
+    }
+
+    /* 分页样式 */
+    .pagination {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        margin: 20px 0;
+    }
+
+    .page-link {
+        display: inline-block;
+        padding: 8px 16px;
+        margin: 0 5px;
+        border-radius: 4px;
+        background-color: #fff;
+        color: #333;
+        text-decoration: none;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        transition: all 0.2s;
+    }
+
+    .page-link:hover {
+        background-color: #f5f5f5;
+    }
+
+    .page-link.active {
+        background-color: #4CAF50;
+        color: white;
+    }
+
+    .page-link.disabled {
+        background-color: #eee;
+        color: #999;
+        cursor: not-allowed;
+    }
+</style>
+
+<script>
+    // 添加事件监听，当按下Enter键时提交搜索表单
+    document.getElementById('movie-search').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            document.getElementById('search-form').submit();
+        }
+    });
+</script>
+{% endblock %}

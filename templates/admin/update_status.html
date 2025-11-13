@@ -1,0 +1,315 @@
+{% extends "admin/admin_base.html" %}
+
+{% block page_title %}更新电影数据{% endblock %}
+
+{% block admin_content %}
+<div class="update-status-container">
+    <p>在此页面管理电影数据库的更新过程。</p>
+
+    <button id="start-update-button" class="action-btn" onclick="startUpdate()" style="display: none;">
+        <i class="fas fa-play"></i> 开始更新
+    </button>
+
+    <button id="reset-button" class="action-btn warning-btn" onclick="resetScraperState()" style="display: none;">
+        <i class="fas fa-sync"></i> 重置爬虫状态
+    </button>
+
+    <div id="update-progress-section" style="display: none;">
+        <h3>更新进度</h3>
+        <div class="progress-container">
+            <div class="progress-bar">
+                <div id="progress-bar-fill" class="progress-bar-fill" style="width: 0%;">0%</div>
+            </div>
+            <div id="progress-status" class="progress-status">正在加载状态...</div>
+        </div>
+        <button id="stop-update-button" class="action-btn cancel-btn" onclick="stopScraper()" style="display: none;">
+            <i class="fas fa-stop"></i> 停止更新
+        </button>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }} {# Include scripts from base if any #}
+<script>
+    let progressInterval = null;
+    const progressBarFill = document.getElementById('progress-bar-fill');
+    const progressStatus = document.getElementById('progress-status');
+    const startButton = document.getElementById('start-update-button');
+    const resetButton = document.getElementById('reset-button');
+    const progressSection = document.getElementById('update-progress-section');
+    const stopButton = document.getElementById('stop-update-button');
+
+    // 显示隐藏的调试区域
+    let debugInfoDiv = document.createElement('div');
+    debugInfoDiv.id = 'debug-info';
+    debugInfoDiv.style.marginTop = '20px';
+    debugInfoDiv.style.padding = '10px';
+    debugInfoDiv.style.border = '1px solid #ddd';
+    debugInfoDiv.style.backgroundColor = '#f9f9f9';
+    debugInfoDiv.style.fontFamily = 'monospace';
+    debugInfoDiv.style.fontSize = '12px';
+    debugInfoDiv.style.maxHeight = '200px';
+    debugInfoDiv.style.overflow = 'auto';
+    debugInfoDiv.innerHTML = '<strong>调试信息：</strong><br>';
+    
+    document.querySelector('.update-status-container').appendChild(debugInfoDiv);
+    
+    function logDebug(message) {
+        const now = new Date();
+        const timestamp = `${now.getHours()}:${now.getMinutes()}:${now.getSeconds()}`;
+        const logLine = document.createElement('div');
+        logLine.textContent = `[${timestamp}] ${message}`;
+        debugInfoDiv.appendChild(logLine);
+        debugInfoDiv.scrollTop = debugInfoDiv.scrollHeight;
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        logDebug('页面加载完成，检查任务进度');
+        checkTaskProgress(); // Initial check when page loads
+    });
+
+    function startUpdate(forceReset = false) {
+        if (!startButton || startButton.disabled) return;
+
+        startButton.disabled = true;
+        startButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 正在启动...';
+        progressSection.style.display = 'block';
+        updateProgressBar({ current: 0, status: 'starting', message: '正在启动更新任务...' });
+        
+        logDebug(`发送启动更新请求，强制重置=${forceReset}`);
+
+        fetch('{{ url_for("admin.update_movies") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ force_reset: forceReset })
+        })
+        .then(response => response.json())
+        .then(data => {
+            logDebug(`收到启动响应：${JSON.stringify(data)}`);
+            if (data.success) {
+                progressStatus.textContent = data.message;
+                startButton.style.display = 'none'; // Hide start button
+                checkTaskProgress(); // Start checking progress immediately
+            } else {
+                logDebug(`启动失败: ${data.message}`);
+                alert('启动更新失败: ' + data.message);
+                resetStartButton();
+                progressSection.style.display = 'none';
+            }
+        })
+        .catch(error => {
+            logDebug(`启动请求出错: ${error}`);
+            console.error('请求更新接口失败:', error);
+            alert('启动更新时发生网络错误，请稍后重试。');
+            resetStartButton();
+            progressSection.style.display = 'none';
+        });
+    }
+
+    function resetScraperState() {
+        if (!resetButton || resetButton.disabled) return;
+        
+        if (!confirm('确定要重置爬虫状态吗？这将清除任何正在进行的更新任务。')) {
+            return;
+        }
+        
+        resetButton.disabled = true;
+        startButton.disabled = true;
+        resetButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 正在重置...';
+        
+        fetch('{{ url_for("admin.reset_scraper") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(data.message);
+                // 重新启用启动按钮，允许用户启动新的任务
+                resetStartButton();
+                resetButton.innerHTML = '<i class="fas fa-sync"></i> 重置爬虫状态';
+                resetButton.disabled = false;
+                // 自动刷新页面状态
+                checkTaskProgress();
+            } else {
+                alert('重置失败: ' + data.message);
+                resetButton.innerHTML = '<i class="fas fa-sync"></i> 重置爬虫状态';
+                resetButton.disabled = false;
+                startButton.disabled = false;
+            }
+        })
+        .catch(error => {
+            console.error('请求重置接口失败:', error);
+            alert('重置时发生网络错误，请稍后重试。');
+            resetButton.innerHTML = '<i class="fas fa-sync"></i> 重置爬虫状态';
+            resetButton.disabled = false;
+            startButton.disabled = false;
+        });
+    }
+
+    function checkTaskProgress() {
+        fetch('{{ url_for("admin.scraper_progress") }}')
+            .then(response => response.json())
+            .then(data => {
+                logDebug(`进度数据: status=${data.status}, current=${data.current}, processed=${data.processed_movies}/${data.target_movies}`);
+                
+                if (data.status === 'running') {
+                    progressSection.style.display = 'block';
+                    startButton.style.display = 'none'; // Ensure start button is hidden
+                    stopButton.style.display = 'inline-block'; // Show stop button when running
+                    updateProgressBar(data);
+                    if (!progressInterval) { // Start polling only if not already polling
+                        logDebug('启动进度轮询');
+                        startProgressCheck();
+                    }
+                } else { // Idle, completed, or error
+                    logDebug(`爬虫状态非运行中: ${data.status}`);
+                    if (data.status === 'idle') {
+                        logDebug('爬虫空闲中');
+                    }
+                    
+                    progressSection.style.display = 'none'; // Hide progress if not running
+                    startButton.style.display = 'inline-block'; // Show start button if idle
+                    stopButton.style.display = 'none'; // Hide stop button if not running
+                    
+                    resetStartButton();
+                    if (progressInterval) {
+                         clearInterval(progressInterval);
+                         progressInterval = null;
+                         logDebug('停止进度轮询');
+                    }
+                    if (data.status === 'completed' || data.status === 'error') {
+                        let finalMessage = data.status === 'completed' ? '上次更新已完成。' : `上次更新出错: ${data.message}`;
+                        logDebug(finalMessage);
+                    }
+                }
+            })
+            .catch(error => {
+                logDebug(`获取进度失败: ${error}`);
+                console.error('检查任务进度失败:', error);
+                progressStatus.textContent = '无法获取更新状态。';
+                startButton.style.display = 'inline-block'; // Allow retry
+                stopButton.style.display = 'none'; // Hide stop button on error
+                resetStartButton();
+                progressSection.style.display = 'none';
+            });
+    }
+
+    function startProgressCheck() {
+        if (progressInterval) return;
+        progressInterval = setInterval(checkTaskProgress, 2000); // Poll every 2 seconds
+    }
+
+    function updateProgressBar(data) {
+        let percent = data.current || 0;
+        percent = Math.max(0, Math.min(100, percent));
+        progressBarFill.style.width = percent + '%';
+        progressBarFill.textContent = Math.round(percent) + '%';
+
+        let statusText = '';
+        switch (data.status) {
+            case 'starting': statusText = data.message || '正在启动...'; break;
+            case 'idle': statusText = '等待任务'; break;
+            case 'running':
+                // 构建更详细的状态信息
+                let details = [];
+                
+                // 添加页面信息
+                if (data.last_page && data.total_pages) {
+                    details.push(`页面进度: ${data.last_page}/${data.total_pages}`);
+                }
+                
+                // 添加电影处理数量
+                if (data.processed_movies !== undefined && data.target_movies !== undefined) {
+                    details.push(`处理电影: ${data.processed_movies}/${data.target_movies}`);
+                }
+                
+                // 添加消息信息
+                if (data.message) {
+                    details.push(data.message);
+                }
+                
+                statusText = details.join(' | ');
+                if (!statusText) {
+                    statusText = `正在更新中... (${Math.round(percent)}%)`;
+                }
+                break;
+            case 'completed':
+                statusText = '更新已完成！';
+                if (data.processed_movies) {
+                    statusText += ` 共处理 ${data.processed_movies} 部电影。`;
+                }
+                alert('电影数据更新完成！'); // Notify user
+                resetStartButton();
+                startButton.style.display = 'inline-block'; // Show start button again
+                stopButton.style.display = 'none'; // Hide stop button
+                progressSection.style.display = 'none'; // Hide progress
+                if (progressInterval) clearInterval(progressInterval); progressInterval = null;
+                break;
+            case 'error':
+                statusText = '更新过程中出现错误: ' + (data.message || '未知错误');
+                alert(statusText); // Notify user
+                resetStartButton();
+                startButton.style.display = 'inline-block'; // Show start button again
+                stopButton.style.display = 'none'; // Hide stop button
+                progressSection.style.display = 'none'; // Hide progress
+                if (progressInterval) clearInterval(progressInterval); progressInterval = null;
+                break;
+            default: statusText = '未知状态...';
+        }
+        progressStatus.textContent = statusText;
+    }
+
+    function resetStartButton() {
+        if(startButton){
+           startButton.disabled = false;
+           startButton.innerHTML = '<i class="fas fa-play"></i> 开始更新';
+        }
+    }
+
+    function stopScraper() {
+        if (!stopButton || stopButton.disabled) return;
+
+        if (!confirm('确定要发送停止信号吗？爬虫将在处理完当前批次后尝试停止。')) {
+            return;
+        }
+
+        logDebug('发送停止爬虫请求');
+        stopButton.disabled = true;
+        stopButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 正在发送停止信号...';
+
+        fetch('{{ url_for("admin.stop_scraper") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            logDebug(`收到停止响应：${JSON.stringify(data)}`);
+            if (data.success) {
+                alert(data.message || '停止信号已发送。');
+                // 按钮状态将在下一次进度检查时更新
+            } else {
+                alert('发送停止信号失败: ' + (data.message || '未知错误'));
+            }
+        })
+        .catch(error => {
+            logDebug(`停止请求出错: ${error}`);
+            console.error('请求停止接口失败:', error);
+            alert('发送停止信号时发生网络错误。');
+        })
+        .finally(() => {
+            stopButton.disabled = false;
+            stopButton.innerHTML = '<i class="fas fa-stop"></i> 停止更新';
+            // 不立即隐藏，等待下一次进度更新来决定其显示状态
+        });
+    }
+
+</script>
+{% endblock %}

@@ -1,0 +1,246 @@
+<!-- movies.html: -->
+{% extends "base.html" %}
+
+{% block title %}电影榜单{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/movies.css') }}">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+<style>
+    .back-to-all {
+        color: #6a11cb;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+    }
+    
+    .back-to-all:hover {
+        text-decoration: underline;
+    }
+    
+    .sort-options {
+        display: flex;
+        gap: 10px;
+        justify-content: center;
+        margin: 15px 0;
+        padding: 10px;
+        background-color: #f4f4f4;
+        border-radius: 10px;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+    }
+    
+    .sort-option {
+        padding: 8px 15px;
+        border-radius: 20px;
+        background-color: #e0e0e0;
+        color: #555;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        text-decoration: none;
+        font-weight: 500;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+    }
+    
+    .sort-option:hover {
+        background-color: #d0d0d0;
+        transform: translateY(-2px);
+        box-shadow: 0 3px 8px rgba(0,0,0,0.1);
+    }
+    
+    .sort-option.active {
+        background-color: #6a11cb;
+        color: white;
+        box-shadow: 0 3px 8px rgba(106,17,203,0.3);
+    }
+    
+    .sort-option i {
+        font-size: 16px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container movies-container">
+    <!-- 优化搜索框 -->
+    <div class="search-container">
+        <form action="{{ url_for('movies.search_movies') }}" method="GET" class="search-form">
+            <input 
+                type="text" 
+                name="keyword" 
+                placeholder="搜索电影名称/导演/演员..." 
+                value="{{ keyword|default('') }}" 
+                class="search-input" 
+                autocomplete="off"
+                autocapitalize="off"
+                autocorrect="off"
+                spellcheck="false"
+            >
+            <button type="submit" class="search-button" aria-label="搜索">
+                <i class="fas fa-search"></i>
+            </button>
+        </form>
+    </div>
+    
+    {% if keyword %}
+    <div class="search-result-info">
+        <p><i class="fas fa-film"></i> 关键词 "<strong>{{ keyword }}</strong>" 的搜索结果</p>
+        <a href="{{ url_for('main.show_movies', page=1) }}" class="back-to-all">
+            <i class="fas fa-arrow-left"></i> 查看全部电影
+        </a>
+    </div>
+    
+    <!-- 搜索结果排序选项 -->
+    <div class="sort-options">            
+        <a href="{{ url_for('movies.search_movies', keyword=keyword, sort='hot', page=1) }}" 
+           class="sort-option {% if sort_by == 'hot' or not sort_by %}active{% endif %}">
+           <i class="fas fa-fire"></i> 按热门排序 <span class="sort-arrow">↓</span>
+        </a>
+        <a href="{{ url_for('movies.search_movies', keyword=keyword, sort='time', page=1) }}" 
+           class="sort-option {% if sort_by == 'time' %}active{% endif %}">
+           <i class="fas fa-clock"></i> 按时间排序 <span class="sort-arrow">↓</span>
+        </a>
+        <a href="{{ url_for('movies.search_movies', keyword=keyword, sort='rating', page=1) }}" 
+           class="sort-option {% if sort_by == 'rating' %}active{% endif %}">
+           <i class="fas fa-star"></i> 按评价排序 <span class="sort-arrow">↓</span>
+        </a>
+    </div>
+    
+    <!-- 显示当前排序方式 -->
+    <div id="current-sort-info" style="text-align: center; margin: 10px 0; font-size: 14px; color: #666;">
+        {% if sort_by == 'hot' or not sort_by %}
+            <i class="fas fa-info-circle"></i> 当前按 <strong>热门程度</strong> 排序
+        {% elif sort_by == 'time' %}
+            <i class="fas fa-info-circle"></i> 当前按 <strong>上映时间</strong> 排序
+        {% elif sort_by == 'rating' %}
+            <i class="fas fa-info-circle"></i> 当前按 <strong>评分高低</strong> 排序
+        {% endif %}
+    </div>
+    {% else %}
+    <!-- 排序选项 -->
+    <div class="sort-options">
+        <a href="{{ url_for('movies.show_movies_root', sort='hot') }}" 
+           class="sort-option {% if sort_by == 'hot' or not sort_by %}active{% endif %}">
+           <i class="fas fa-fire"></i> 按热门排序 <span class="sort-arrow">↓</span>
+        </a>
+        <a href="{{ url_for('movies.show_movies_root', sort='time') }}" 
+           class="sort-option {% if sort_by == 'time' %}active{% endif %}">
+           <i class="fas fa-clock"></i> 按时间排序 <span class="sort-arrow">↓</span>
+        </a>
+        <a href="{{ url_for('movies.show_movies_root', sort='rating') }}" 
+           class="sort-option {% if sort_by == 'rating' %}active{% endif %}">
+           <i class="fas fa-star"></i> 按评价排序 <span class="sort-arrow">↓</span>
+        </a>
+    </div>
+
+    <!-- 显示当前排序方式 -->
+    <div id="current-sort-info" style="text-align: center; margin: 10px 0; font-size: 14px; color: #666;">
+        {% if sort_by == 'hot' or not sort_by %}
+            <i class="fas fa-info-circle"></i> 当前按 <strong>热门程度</strong> 排序
+        {% elif sort_by == 'time' %}
+            <i class="fas fa-info-circle"></i> 当前按 <strong>上映时间</strong> 排序
+        {% elif sort_by == 'rating' %}
+            <i class="fas fa-info-circle"></i> 当前按 <strong>评分高低</strong> 排序
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <ul class="movie-list">
+        {% for movie in movies %}
+        <li>
+            <a href="{{ url_for('main.movie_detail', movie_id=movie.id) }}">
+                <div class="card movie-card">
+                    <div class="image">
+                        {% if movie.poster_path %}
+                            <img src="{{ movie.poster_path }}" alt="{{ movie.title }}">
+                        {% else %}
+                            <div class="no-image">暂无海报</div>
+                        {% endif %}
+                    </div>
+                    <div class="info">
+                        <h3 class="title">{{ movie.title }}</h3>
+                        <p class="release-date">上映时间: {{ movie.release_date }}</p>
+                        <p class="score">评分: {{ "%.1f"|format(movie.vote_average|float if movie.vote_average else 0) }}</p>
+                        <div class="genres">
+                            {% if movie.genres %}
+                            <p>类型:
+                            {% for genre in movie.genres[:3] %}
+                                <span class="genre-tag">{{ genre }}</span>
+                            {% endfor %}
+                            </p>
+                            {% else %}
+                            <p>类型: <span class="genre-tag">未知</span></p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </a>
+        </li>
+        {% endfor %}
+    </ul>
+
+    {% if not movies %}
+    <div class="no-results">
+        <i class="fas fa-search" style="font-size: 32px; margin-bottom: 15px; color: #6a11cb;"></i>
+        <p>未找到匹配的电影</p>
+    </div>
+    {% endif %}
+    
+    <!-- 分页导航 -->
+    <div class="pagination">
+        {% if page > 1 %}
+            {% if keyword %}
+            <a href="{{ url_for('movies.search_movies', keyword=keyword, page=page-1, sort=sort_by) }}" class="page-link prev">上一页</a>
+            {% else %}
+            <a href="{{ url_for('movies.show_movies_page', page=page-1, sort=sort_by) }}" class="page-link prev">上一页</a>
+            {% endif %}
+        {% endif %}
+        
+        {% set start_page = page - 2 if page > 2 else 1 %}
+        {% set end_page = start_page + 4 if start_page + 4 <= total_pages else total_pages %}
+        {% if start_page > 1 %}
+            {% if keyword %}
+            <a href="{{ url_for('movies.search_movies', keyword=keyword, page=1, sort=sort_by) }}" class="page-link">1</a>
+            {% else %}
+            <a href="{{ url_for('movies.show_movies_page', page=1, sort=sort_by) }}" class="page-link">1</a>
+            {% endif %}
+            {% if start_page > 2 %}
+            <span class="ellipsis">...</span>
+            {% endif %}
+        {% endif %}
+        
+        {% for p in range(start_page, end_page + 1) %}
+            {% if keyword %}
+            <a href="{{ url_for('movies.search_movies', keyword=keyword, page=p, sort=sort_by) }}" class="page-link {% if p == page %}active{% endif %}">{{ p }}</a>
+            {% else %}
+            <a href="{{ url_for('movies.show_movies_page', page=p, sort=sort_by) }}" class="page-link {% if p == page %}active{% endif %}">{{ p }}</a>
+            {% endif %}
+        {% endfor %}
+        
+        {% if end_page < total_pages %}
+            {% if end_page < total_pages - 1 %}
+            <span class="ellipsis">...</span>
+            {% endif %}
+            {% if keyword %}
+            <a href="{{ url_for('movies.search_movies', keyword=keyword, page=total_pages, sort=sort_by) }}" class="page-link">{{ total_pages }}</a>
+            {% else %}
+            <a href="{{ url_for('movies.show_movies_page', page=total_pages, sort=sort_by) }}" class="page-link">{{ total_pages }}</a>
+            {% endif %}
+        {% endif %}
+        
+        {% if page < total_pages %}
+            {% if keyword %}
+            <a href="{{ url_for('movies.search_movies', keyword=keyword, page=page+1, sort=sort_by) }}" class="page-link next">下一页</a>
+            {% else %}
+            <a href="{{ url_for('movies.show_movies_page', page=page+1, sort=sort_by) }}" class="page-link next">下一页</a>
+            {% endif %}
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/movies.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,225 @@
+{% extends "base.html" %}
+
+{% block title %}我的评分记录{% endblock %}
+
+{% block head %}
+<style>
+    .ratings-container {
+        max-width: 1200px;
+        margin: 20px auto;
+    }
+
+    .section-title {
+        font-size: 24px;
+        margin-bottom: 20px;
+        color: #333;
+        border-bottom: 1px solid #eee;
+        padding-bottom: 10px;
+    }
+
+    .ratings-list {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+    }
+
+    .rating-item {
+        display: flex;
+        background-color: #fff;
+        border-radius: 8px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        overflow: hidden;
+        transition: transform 0.2s;
+    }
+
+    .rating-item:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+    }
+
+    .rating-poster {
+        width: 120px;
+        height: 180px;
+        object-fit: cover;
+    }
+
+    .rating-content {
+        flex: 1;
+        padding: 15px;
+    }
+
+    .rating-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 10px;
+    }
+
+    .movie-title {
+        font-size: 18px;
+        font-weight: bold;
+        color: #333;
+        margin: 0;
+    }
+
+    .rating-score {
+        font-size: 16px;
+        color: #ffb400;
+        font-weight: bold;
+        background-color: #1c2b3a;
+        padding: 5px 10px;
+        border-radius: 20px;
+    }
+
+    .rating-date {
+        color: #999;
+        font-size: 14px;
+        margin-bottom: 10px;
+    }
+
+    .rating-comment {
+        color: #555;
+        line-height: 1.5;
+    }
+
+    .empty-message {
+        text-align: center;
+        padding: 50px;
+        color: #999;
+        font-size: 16px;
+        background-color: #f9f9f9;
+        border-radius: 8px;
+    }
+
+    .actions {
+        margin-top: 15px;
+    }
+
+    .view-movie {
+        display: inline-block;
+        color: #4CAF50;
+        text-decoration: none;
+        font-weight: bold;
+        transition: color 0.2s;
+    }
+
+    .view-movie:hover {
+        color: #45a049;
+    }
+
+    .back-to-movies {
+        display: inline-block;
+        margin-top: 20px;
+        color: #333;
+        text-decoration: none;
+        font-weight: bold;
+    }
+
+    .back-to-movies:hover {
+        color: #4CAF50;
+    }
+
+    /* 分页样式 */
+    .pagination {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        margin: 30px 0;
+    }
+
+    .page-link {
+        display: inline-block;
+        padding: 8px 16px;
+        margin: 0 5px;
+        border-radius: 4px;
+        background-color: #fff;
+        color: #333;
+        text-decoration: none;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        transition: all 0.2s;
+    }
+
+    .page-link:hover {
+        background-color: #f5f5f5;
+    }
+
+    .page-link.active {
+        background-color: #4CAF50;
+        color: white;
+    }
+
+    .page-link.disabled {
+        background-color: #eee;
+        color: #999;
+        cursor: not-allowed;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="ratings-container">
+    <h1 class="section-title">我的评分记录</h1>
+
+    {% if ratings %}
+    <div class="ratings-list">
+        {% for rating in ratings %}
+        <div class="rating-item">
+            <img src="{{ rating.image }}" alt="{{ rating.title }}" class="rating-poster">
+            <div class="rating-content">
+                <div class="rating-header">
+                    <h2 class="movie-title">{{ rating.title }}</h2>
+                    <span class="rating-score">{{ rating.rating }}分</span>
+                </div>
+                <div class="rating-date">评分时间: {{ rating.created_at }}</div>
+                {% if rating.comment %}
+                <div class="rating-comment">{{ rating.comment }}</div>
+                {% endif %}
+                <div class="actions">
+                    <a href="{{ url_for('main.movie_detail', movie_id=rating.movie_id) }}" class="view-movie">查看电影详情</a>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- 分页导航 -->
+    {% if total_pages > 1 %}
+    <div class="pagination">
+        <!-- 上一页 -->
+        {% if page > 1 %}
+            <a href="{{ url_for('main.user_ratings', page=page-1) }}" class="page-link">&laquo; 上一页</a>
+        {% else %}
+            <span class="page-link disabled">&laquo; 上一页</span>
+        {% endif %}
+        
+        <!-- 页码 -->
+        {% set start_page = [page - 2, 1]|max %}
+        {% set end_page = [start_page + 4, total_pages]|min %}
+        {% set start_page = [end_page - 4, 1]|max %}
+        
+        {% for p in range(start_page, end_page + 1) %}
+            {% if p == page %}
+                <span class="page-link active">{{ p }}</span>
+            {% else %}
+                <a href="{{ url_for('main.user_ratings', page=p) }}" class="page-link">{{ p }}</a>
+            {% endif %}
+        {% endfor %}
+        
+        <!-- 下一页 -->
+        {% if page < total_pages %}
+            <a href="{{ url_for('main.user_ratings', page=page+1) }}" class="page-link">下一页 &raquo;</a>
+        {% else %}
+            <span class="page-link disabled">下一页 &raquo;</span>
+        {% endif %}
+    </div>
+    {% endif %}
+    {% else %}
+    <div class="empty-message">
+        <p>您还没有评分过任何电影</p>
+        <p>去浏览电影并给它们评分吧！</p>
+    </div>
+    {% endif %}
+
+    <a href="{{ url_for('main.show_movies', page=1) }}" class="back-to-movies">← 返回电影列表</a>
+</div>
+{% endblock %}

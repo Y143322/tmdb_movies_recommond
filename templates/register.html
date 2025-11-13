@@ -1,0 +1,95 @@
+<!-- register.html: -->
+{% extends "base.html" %}
+
+{% block title %}用户注册{% endblock %}
+
+{% block header %}用户注册{% endblock %}
+
+{% block content %}
+<div class="auth-container">
+    <form method="post">
+        <label for="username">用户名:</label>
+        <input type="text" id="username" name="username" required>
+
+        <div class="form-group">
+            <label for="password">密码</label>
+            <input type="password" class="form-control" id="password" name="password" required>
+        </div>
+
+        <div class="form-group">
+            <label for="confirm_password">确认密码</label>
+            <input type="password" class="form-control" id="confirm_password" name="confirm_password" required>
+        </div>
+
+        <div class="form-group">
+            <label for="captcha">验证码</label>
+            <div class="input-group">
+                <input type="text" class="form-control" id="captcha" name="captcha" required>
+                <div class="input-group-append">
+                    <img id="captcha-image" src="" alt="验证码" style="height: 38px; cursor: pointer;">
+                </div>
+            </div>
+        </div>
+
+        <label for="email">邮箱 (可选):</label>
+        <input type="email" id="email" name="email">
+
+        <div class="user-type-selection">
+            <label>用户类型:</label>
+            <div class="radio-group">
+                <input type="radio" id="user_type_normal" name="user_type" value="normal" checked>
+                <label for="user_type_normal">普通用户</label>
+
+                <input type="radio" id="user_type_admin" name="user_type" value="admin">
+                <label for="user_type_admin">管理员</label>
+            </div>
+        </div>
+
+        <div id="admin_verification" style="display: none;">
+            <label for="admin_code">管理员验证码:</label>
+            <input type="text" id="admin_code" name="admin_code">
+            <small>请输入管理员验证码</small>
+        </div>
+
+        <button type="submit" class="btn btn-primary">注册</button>
+    </form>
+    <div class="login-link">
+        已有账号? <a href="{{ url_for('auth.login') }}">登录</a>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const userTypeRadios = document.querySelectorAll('input[name="user_type"]');
+        const adminVerification = document.getElementById('admin_verification');
+        const adminCodeInput = document.getElementById('admin_code');
+
+        userTypeRadios.forEach(radio => {
+            radio.addEventListener('change', function() {
+                if (this.value === 'admin') {
+                    adminVerification.style.display = 'block';
+                    adminCodeInput.required = true;
+                } else {
+                    adminVerification.style.display = 'none';
+                    adminCodeInput.required = false;
+                }
+            });
+        });
+    });
+
+    // 加载验证码
+    function loadCaptcha() {
+        fetch('{{ url_for('auth.get_captcha') }}')
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('captcha-image').src = 'data:image/png;base64,' + data.image;
+            });
+    }
+
+    // 页面加载时加载验证码
+    document.addEventListener('DOMContentLoaded', loadCaptcha);
+
+    // 点击验证码图片时刷新
+    document.getElementById('captcha-image').addEventListener('click', loadCaptcha);
+</script>
+{% endblock %}

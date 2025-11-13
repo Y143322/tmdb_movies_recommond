@@ -1,0 +1,248 @@
+{% extends "admin/admin_base.html" %}
+
+{% block page_title %}电影详情{% endblock %}
+
+{% block admin_content %}
+<div class="movie-detail-container">
+    <div class="movie-header">
+        <h2>{{ movie.title }}</h2>
+        <div class="movie-actions">
+            <button onclick="confirmDelete({{ movie.id|tojson }})" class="delete-btn">删除</button>
+            <a href="{{ url_for('admin_movies') }}" class="back-btn">返回列表</a>
+        </div>
+    </div>
+    
+    <div class="movie-content">
+        <div class="movie-poster">
+            {% if movie.poster_url %}
+            <img src="{{ movie.poster_url }}" alt="{{ movie.title }}的海报">
+            {% else %}
+            <img src="{{ url_for('static', filename='images/no-poster.png') }}" alt="无海报">
+            {% endif %}
+        </div>
+        
+        <div class="movie-info">
+            <div class="info-row">
+                <span class="info-label">导演:</span>
+                <span class="info-value">{{ movie.director or '未知' }}</span>
+            </div>
+            
+            <div class="info-row">
+                <span class="info-label">主演:</span>
+                <span class="info-value">{{ movie.actors or '未知' }}</span>
+            </div>
+            
+            <div class="info-row">
+                <span class="info-label">类型:</span>
+                <span class="info-value">{{ movie.genres or '未知' }}</span>
+            </div>
+            
+            <div class="info-row">
+                <span class="info-label">上映日期:</span>
+                <span class="info-value">{{ movie.release_date or '未知' }}</span>
+            </div>
+            
+            <div class="info-row">
+                <span class="info-label">评分:</span>
+                <span class="info-value rating">
+                    <span class="stars" data-rating="{{ movie.rating or 0 }}"></span>
+                    {{ movie.rating or '暂无评分' }}
+                </span>
+            </div>
+            
+            <div class="info-row description">
+                <span class="info-label">简介:</span>
+                <div class="info-value description-text">
+                    {{ movie.description or '暂无简介' }}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .movie-detail-container {
+        max-width: 1000px;
+        margin: 0 auto;
+        padding: 20px;
+        background-color: #fff;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    }
+    
+    .movie-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 30px;
+        padding-bottom: 15px;
+        border-bottom: 1px solid #eee;
+    }
+    
+    .movie-header h2 {
+        margin: 0;
+        color: #333;
+        font-size: 28px;
+    }
+    
+    .movie-actions {
+        display: flex;
+        gap: 10px;
+    }
+    
+    .delete-btn, .back-btn {
+        padding: 8px 16px;
+        border-radius: 4px;
+        font-weight: bold;
+        cursor: pointer;
+        text-decoration: none;
+        text-align: center;
+    }
+    
+    .delete-btn {
+        background-color: #e74c3c;
+        color: white;
+        border: none;
+    }
+    
+    .back-btn {
+        background-color: #f5f5f5;
+        color: #333;
+        border: 1px solid #ddd;
+    }
+    
+    .delete-btn:hover {
+        background-color: #c0392b;
+    }
+    
+    .back-btn:hover {
+        background-color: #e9e9e9;
+    }
+    
+    .movie-content {
+        display: flex;
+        gap: 30px;
+    }
+    
+    .movie-poster {
+        flex: 0 0 300px;
+    }
+    
+    .movie-poster img {
+        width: 100%;
+        border-radius: 4px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    }
+    
+    .movie-info {
+        flex: 1;
+    }
+    
+    .info-row {
+        margin-bottom: 15px;
+    }
+    
+    .info-label {
+        font-weight: bold;
+        color: #555;
+        min-width: 100px;
+        display: inline-block;
+    }
+    
+    .info-value {
+        color: #333;
+    }
+    
+    .description {
+        display: flex;
+    }
+    
+    .description-text {
+        flex: 1;
+        line-height: 1.6;
+        white-space: pre-line;
+    }
+    
+    .rating .stars {
+        display: inline-block;
+        vertical-align: middle;
+        margin-right: 10px;
+    }
+    
+    /* 响应式设计 */
+    @media (max-width: 768px) {
+        .movie-content {
+            flex-direction: column;
+        }
+        
+        .movie-poster {
+            flex: 0 0 auto;
+            margin-bottom: 20px;
+            max-width: 250px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        
+        .movie-header {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 15px;
+        }
+        
+        .info-row.description {
+            flex-direction: column;
+        }
+        
+        .info-label {
+            margin-bottom: 5px;
+        }
+    }
+</style>
+
+<script>
+    // 确认删除对话框
+    function confirmDelete(movieId) {
+        if (confirm('确定要删除这部电影吗？此操作不可恢复！')) {
+            // 创建并提交表单
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = `/admin/delete_movie/${movieId}`;
+            document.body.appendChild(form);
+            form.submit();
+        }
+    }
+    
+    // 渲染星级评分
+    document.addEventListener('DOMContentLoaded', function() {
+        const starsElement = document.querySelector('.stars');
+        if (starsElement) {
+            const rating = parseFloat(starsElement.dataset.rating) || 0;
+            const fullStars = Math.floor(rating);
+            const hasHalfStar = rating % 1 >= 0.5;
+            
+            let starsHtml = '';
+            
+            // 渲染全星
+            for (let i = 0; i < fullStars; i++) {
+                starsHtml += '★';
+            }
+            
+            // 渲染半星
+            if (hasHalfStar) {
+                starsHtml += '☆';
+            }
+            
+            // 渲染空星
+            const emptyStars = 5 - fullStars - (hasHalfStar ? 1 : 0);
+            for (let i = 0; i < emptyStars; i++) {
+                starsHtml += '☆';
+            }
+            
+            starsElement.innerHTML = starsHtml;
+            starsElement.style.color = '#f39c12';
+            starsElement.style.fontSize = '20px';
+            starsElement.style.letterSpacing = '2px';
+        }
+    });
+</script>
+{% endblock %} 

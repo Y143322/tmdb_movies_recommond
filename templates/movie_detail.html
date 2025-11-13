@@ -1,0 +1,1006 @@
+﻿{% extends "base.html" %}
+
+{% block title %}{{ movie[1] }} - 电影详情{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/movie_detail.css') }}">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+<style>
+    /* 点赞按钮样式 */
+    .review-content-wrapper {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+    }
+
+    .review-comment {
+        flex: 1;
+        margin-right: 10px;
+        word-break: break-word;
+    }
+
+    .review-actions {
+        display: flex;
+        align-items: center;
+        margin-top: 0;
+        flex-shrink: 0;
+    }
+
+    .like-button, .like-info, .reply-button {
+        display: inline-flex;
+        align-items: center;
+        background: none;
+        border: 1px solid #e0e0e0;
+        border-radius: 20px;
+        padding: 4px 12px;
+        font-size: 14px;
+        color: #666;
+        cursor: pointer;
+        transition: all 0.2s;
+        white-space: nowrap;
+        margin-right: 8px;
+    }
+
+
+
+    .like-button:hover, .reply-button:hover {
+        background-color: #f5f5f5;
+    }
+
+    .like-button.liked {
+        background-color: #e8f4fd;
+        border-color: #1a237e;
+        color: #1a237e;
+    }
+
+    .like-button i, .like-info i, .reply-button i {
+        margin-right: 5px;
+    }
+
+    .like-count {
+        font-weight: 500;
+    }
+
+    .like-button.loading {
+        opacity: 0.7;
+        pointer-events: none;
+    }
+
+    .no-comment {
+        color: #999;
+        font-style: italic;
+        font-size: 0.9em;
+    }
+
+    /* 评论回复样式 */
+    .replies-container {
+        margin-top: 15px;
+        padding-left: 20px;
+        border-left: 2px solid #ebebeb;
+    }
+
+    .reply-item {
+        background-color: #f9f9f9;
+        padding: 12px 15px;
+        border-radius: 8px;
+        margin-bottom: 10px;
+    }
+
+    .reply-header {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 5px;
+        align-items: center;
+    }
+
+    .reply-user {
+        font-weight: 500;
+        color: #555;
+    }
+
+    .reply-date {
+        font-size: 12px;
+        color: #888;
+    }
+
+    .reply-content {
+        font-size: 14px;
+        line-height: 1.4;
+        margin-top: 5px;
+    }
+
+    .reply-form {
+        margin-top: 10px;
+        display: none;  /* 默认隐藏 */
+    }
+
+    .reply-form.active {
+        display: block;
+    }
+
+    .reply-form textarea {
+        width: 100%;
+        padding: 8px 12px;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        font-size: 14px;
+        resize: vertical;
+        min-height: 60px;
+    }
+
+    .reply-form-buttons {
+        display: flex;
+        justify-content: flex-end;
+        margin-top: 8px;
+    }
+
+    .reply-form-buttons button {
+        margin-left: 10px;
+        padding: 6px 12px;
+        border-radius: 4px;
+        font-size: 14px;
+        cursor: pointer;
+    }
+
+    .reply-submit {
+        background-color: #3949ab;
+        color: white;
+        border: none;
+    }
+
+    .reply-cancel {
+        background-color: #f5f5f5;
+        color: #555;
+        border: 1px solid #ddd;
+    }
+
+    .reply-delete {
+        font-size: 12px;
+        color: #e53935;
+        background: none;
+        border: none;
+        cursor: pointer;
+        padding: 0;
+    }
+
+    .reply-delete:hover {
+        text-decoration: underline;
+    }
+
+    /* 分页样式 */
+    .pagination {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        margin: 20px 0;
+    }
+
+    .page-link {
+        display: inline-block;
+        padding: 8px 16px;
+        margin: 0 4px;
+        border-radius: 4px;
+        background-color: #fff;
+        color: #333;
+        text-decoration: none;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        transition: all 0.2s;
+    }
+
+    .page-link:hover {
+        background-color: #f5f5f5;
+    }
+
+    .page-link.active {
+        background-color: #3949ab;
+        color: white;
+    }
+
+    .page-link.disabled {
+        background-color: #eee;
+        color: #999;
+        cursor: not-allowed;
+    }
+
+    /* 当屏幕宽度较小时改为纵向排列 */
+    @media (max-width: 576px) {
+        .review-content-wrapper {
+            flex-direction: column;
+        }
+
+        .review-comment {
+            margin-right: 0;
+            margin-bottom: 8px;
+        }
+
+        .review-actions {
+            justify-content: flex-start;
+        }
+
+        .pagination {
+            flex-wrap: wrap;
+        }
+    }
+    
+    /* 评论字数计数器样式 */
+    .character-counter {
+        text-align: right;
+        font-size: 0.85em;
+        color: #666;
+        margin-top: 4px;
+    }
+
+    .character-counter.warning {
+        color: #f57c00;
+    }
+
+    .character-counter.limit-reached {
+        color: #d32f2f;
+        font-weight: bold;
+    }
+
+    /* 新增Toast通知样式 */
+    .toast-container {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 9999;
+    }
+
+    .toast {
+        padding: 12px 25px;
+        background-color: #323232;
+        color: white;
+        border-radius: 4px;
+        opacity: 0;
+        transform: translateY(-20px);
+        transition: all 0.3s;
+        margin-bottom: 10px;
+        box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
+        max-width: 350px;
+    }
+    
+    .toast.success {
+        background-color: #4CAF50;
+    }
+    
+    .toast.error {
+        background-color: #F44336;
+    }
+    
+    .toast.info {
+        background-color: #3949ab;
+    }
+    
+    .toast.show {
+        opacity: 1;
+        transform: translateY(0);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+
+
+<div class="movie-container">
+    <div class="movie-header">
+        <div class="movie-poster">
+            {% if movie[4] %}
+            <img 
+                src="{{ movie[4] }}" 
+                alt="{{ movie[1] }}"
+                loading="lazy"
+                onerror="this.onerror=null; this.src='{{ url_for('static', filename='img/broken-image-placeholder.png') }}';"
+            >
+            {% else %}
+            <img 
+                src="{{ url_for('static', filename='img/default-movie-placeholder.png') }}" 
+                alt="{{ movie[1] }}"
+                loading="lazy"
+            >
+            {% endif %}
+        </div>
+        <div class="movie-info">
+            <h1 class="movie-title">{{ movie[1] }}</h1>
+            <div class="movie-rating">
+                <div class="rating-stars">
+                    <div class="stars-outer">
+                        <div class="stars-inner" data-width="{{ (movie[8] / 10) * 100 }}" style="width: 0%"></div>
+                    </div>
+                </div>
+                <div class="rating-number">
+                    {% if has_user_ratings %}
+                    <span>{{ "%.1f"|format(movie[8]) }}</span>/10
+                    <small>({{ local_ratings_count }}人评分，数据来源于本站用户)</small>
+                    {% else %}
+                    <span>{{ "%.1f"|format(movie[8]) }}</span>/10
+                    <small>({{ movie[9] }}人评分，数据来源于TMDB)</small>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="movie-metadata">
+                <p><span class="metadata-label">原始标题:</span> {{ movie[2] or '暂无信息' }}</p>
+                <p><span class="metadata-label">上映日期:</span> {{ movie[6]|string or '暂无信息' }}</p>
+                <p><span class="metadata-label">原始语言:</span> {{ movie[10] or '暂无信息' }}</p>
+                {% if movie_genres %}
+                <div class="movie-genres">
+                    <span class="metadata-label">电影类型:</span>
+                    <div class="genre-tags">
+                        {% for genre in movie_genres %}
+                        <span class="genre-tag">{{ genre }}</span>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+                <p><span class="metadata-label">电影类型:</span> {{ movie[11] or '暂无信息' }}</p>
+                {% if movie_director %}
+                <p><span class="metadata-label">导演:</span> {{ movie_director }}</p>
+                {% endif %}
+                {% if movie_actors %}
+                <p><span class="metadata-label">主要演员:</span> {{ movie_actors|join(', ') }}</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="movie-content">
+        <h2 class="section-title">电影简介</h2>
+        <div class="movie-summary">
+            {% if movie[3] %}
+            {{ movie[3] }}
+            {% else %}
+            暂无简介信息
+            {% endif %}
+        </div>
+
+        <!-- 评分表单部分 -->
+        {% if is_admin %}
+        <div class="admin-note">
+            <p>注意：管理员账户不能参与电影评分。</p>
+        </div>
+        {% else %}
+        <div class="rating-form-section">
+            <h3>我的评分</h3>
+            <form id="ratingForm" class="rating-form">
+                <div class="rating-stars">
+                    <!-- 先放星星部分 -->
+                    <div class="stars-container">
+                        <input type="radio" id="star10" name="rating" value="10" {% if user_rating and user_rating[3] == 10 %}checked{% endif %}>
+                        <label for="star10"></label>
+                        <input type="radio" id="star9" name="rating" value="9" {% if user_rating and user_rating[3] == 9 %}checked{% endif %}>
+                        <label for="star9"></label>
+                        <input type="radio" id="star8" name="rating" value="8" {% if user_rating and user_rating[3] == 8 %}checked{% endif %}>
+                        <label for="star8"></label>
+                        <input type="radio" id="star7" name="rating" value="7" {% if user_rating and user_rating[3] == 7 %}checked{% endif %}>
+                        <label for="star7"></label>
+                        <input type="radio" id="star6" name="rating" value="6" {% if user_rating and user_rating[3] == 6 %}checked{% endif %}>
+                        <label for="star6"></label>
+                        <input type="radio" id="star5" name="rating" value="5" {% if user_rating and user_rating[3] == 5 %}checked{% endif %}>
+                        <label for="star5"></label>
+                        <input type="radio" id="star4" name="rating" value="4" {% if user_rating and user_rating[3] == 4 %}checked{% endif %}>
+                        <label for="star4"></label>
+                        <input type="radio" id="star3" name="rating" value="3" {% if user_rating and user_rating[3] == 3 %}checked{% endif %}>
+                        <label for="star3"></label>
+                        <input type="radio" id="star2" name="rating" value="2" {% if user_rating and user_rating[3] == 2 %}checked{% endif %}>
+                        <label for="star2"></label>
+                        <input type="radio" id="star1" name="rating" value="1" {% if user_rating and user_rating[3] == 1 %}checked{% endif %}>
+                        <label for="star1"></label>
+                    </div>
+                    <!-- 然后放评分数字 -->
+                    <span class="rating-value">{% if user_rating %}{{ user_rating[3] }}{% else %}0{% endif %}</span>
+                </div>
+                <div class="comment-box">
+                    <textarea name="comment" placeholder="写下您的评价（可选，最多500字）" rows="4" maxlength="500" id="commentTextarea">{% if user_rating %}{{ user_rating[4] }}{% endif %}</textarea>
+                    <div class="character-counter">已输入 <span id="charCount">0</span>/500 字</div>
+                </div>
+                <button type="submit" class="submit-rating">提交评分</button>
+            </form>
+        </div>
+        {% endif %}
+
+        {% if user_reviews %}
+        <div class="user-reviews">
+            <h2 class="section-title">用户评论 ({{ total_reviews }})</h2>
+            {% for review in user_reviews %}
+            <div class="review-item" data-review-id="{{ review[0] }}">
+                <div class="review-header">
+                    <span class="review-user">{{ review[4] }}</span>
+                    <span class="review-rating"><i class="fas fa-star"></i> {{ review[1] }}</span>
+                </div>
+                <div class="review-date">{{ review[3].strftime('%Y-%m-%d %H:%M:%S') if review[3] else '未知' }}</div>
+                <div class="review-content-wrapper">
+                    <div class="review-comment">
+                        {% if review[2] %}
+                        {{ review[2]|safe_comment }}
+                        {% else %}
+                        <span class="no-comment">用户未留下评论</span>
+                        {% endif %}
+                    </div>
+                    <div class="review-actions">
+                        {% if current_user.is_authenticated and not current_user.is_admin %}
+                        <button class="like-button {% if review[6] == 1 %}liked{% endif %}" data-rating-id="{{ review[0] }}">
+                            <i class="{% if review[6] == 1 %}fas{% else %}far{% endif %} fa-thumbs-up"></i>
+                            <span class="like-count">{{ review[5] }}</span>
+                        </button>
+
+                        {% else %}
+                        <div class="like-info">
+                            <i class="far fa-thumbs-up"></i>
+                            <span class="like-count">{{ review[5] }}</span>
+                        </div>
+                        {% endif %}
+
+                        <button class="reply-button" data-review-id="{{ review[0] }}" data-authenticated="{{ current_user.is_authenticated|tojson }}">
+                            <i class="far fa-comment"></i> 回复
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 回复表单 -->
+                {% if current_user.is_authenticated %}
+                <div id="reply-form-{{ review[0] }}" class="reply-form">
+                    <form action="{{ url_for('main.reply_comment_endpoint', rating_id=review[0]) }}" method="post">
+                        <input type="hidden" name="movie_id" value="{{ movie[0] }}">
+                        <textarea name="reply" placeholder="添加回复（最多200字）..." maxlength="200" class="reply-textarea" data-reply-id="{{ review[0] }}" required></textarea>
+                        <div class="character-counter">已输入 <span id="replyCharCount-{{ review[0] }}">0</span>/200 字</div>
+                        <div class="reply-form-buttons">
+                            <button type="button" class="reply-cancel" onclick="toggleReplyForm('{{ review[0] }}')">取消</button>
+                            <button type="submit" class="reply-submit">发表回复</button>
+                        </div>
+                    </form>
+                </div>
+                {% endif %}
+
+                {% if review[7] and review[7]|length > 0 %}
+                <div class="replies-container">
+                    {% for reply in review[7] %}
+                    <div class="reply-item">
+                        <div class="reply-header">
+                            <span class="reply-user">{{ reply[3] }}{% if reply[4] == current_user.id or current_user.is_admin %} (我){% endif %}</span>
+                            <span class="reply-date">{{ reply[2].strftime('%Y-%m-%d %H:%M') if reply[2] else '未知' }}</span>
+                        </div>
+                        <div class="reply-content">{{ reply[1] }}</div>
+
+                        {% if current_user.is_authenticated and (reply[4] == current_user.id or current_user.is_admin) %}
+                        <div class="reply-actions">
+                            <form action="{{ url_for('main.delete_reply_endpoint', reply_id=reply[0]) }}" method="post" onsubmit="return confirm('确定要删除这条回复吗？')">
+                                <button type="submit" class="reply-delete">删除</button>
+                            </form>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+
+            <!-- 分页导航 -->
+            {% if total_pages > 1 %}
+            <div class="pagination">
+                <!-- 上一页链接 -->
+                {% if current_page > 1 %}
+                <a href="{{ url_for('main.movie_detail', movie_id=movie[0], page=current_page-1) }}" class="page-link">&laquo; 上一页</a>
+                {% else %}
+                <span class="page-link disabled">&laquo; 上一页</span>
+                {% endif %}
+
+                <!-- 页码链接 -->
+                {% set start_page = [current_page - 2, 1]|max %}
+                {% set end_page = [start_page + 4, total_pages]|min %}
+                {% set start_page = [end_page - 4, 1]|max %}
+
+                {% for p in range(start_page, end_page + 1) %}
+                {% if p == current_page %}
+                <span class="page-link active">{{ p }}</span>
+                {% else %}
+                <a href="{{ url_for('main.movie_detail', movie_id=movie[0], page=p) }}" class="page-link">{{ p }}</a>
+                {% endif %}
+                {% endfor %}
+
+                <!-- 下一页链接 -->
+                {% if current_page < total_pages %}
+                <a href="{{ url_for('main.movie_detail', movie_id=movie[0], page=current_page+1) }}" class="page-link">下一页 &raquo;</a>
+                {% else %}
+                <span class="page-link disabled">下一页 &raquo;</span>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+        {% else %}
+        <div class="no-reviews">
+            <h2 class="section-title">用户评论</h2>
+            <p>暂无评论，来发表第一条评论吧！</p>
+        </div>
+        {% endif %}
+
+        {% if similar_movies %}
+        <div class="similar-movies">
+            <div class="recommendation-header">
+                <h2 class="section-title">相似电影推荐</h2>
+                <div class="recommendation-controls">
+                    <div id="similar-refresh-notification" class="refresh-notification" style="display: none;">
+                        <i class="fas fa-check-circle"></i> 已为您推荐相似内容
+                    </div>
+                    <button id="refresh-similar-movies" class="refresh-btn">
+                        <i class="fas fa-sync-alt"></i> 换一换
+                    </button>
+                </div>
+            </div>
+            <div class="similarity-explanation">
+                <i class="fas fa-info-circle"></i>
+                <span>这些电影与《{{ movie[1] }}》在类型、演员、导演等方面存在相似性，可能符合您的观影口味</span>
+            </div>
+            <div id="similar-movies-container" class="related-list" data-movie-id="{{ movie[0] }}">
+                {% for sim_movie in similar_movies %}
+                <div class="related-item-wrapper">
+                    <a href="{{ url_for('main.movie_detail', movie_id=sim_movie.id) }}" class="related-item">
+                        {% if sim_movie.image %}
+                        <img src="{{ sim_movie.image }}" alt="{{ sim_movie.title }}">
+                        {% else %}
+                        <img src="{{ url_for('static', filename='img/default-movie-placeholder.png') }}" alt="{{ sim_movie.title }}">
+                        {% endif %}
+                        <div class="related-title">{{ sim_movie.title }}</div>
+                        <div class="related-score">
+                            <div class="rating-badge">
+                                <i class="fas fa-star"></i>
+                                <span>{{ "%.1f"|format(sim_movie.score|float if sim_movie.score else 0) }}</span>
+                            </div>
+                            {% if sim_movie.vote_count and sim_movie.vote_count > 0 %}
+                            <small>{{ sim_movie.vote_count }}人评价</small>
+                            {% endif %}
+                        </div>
+                    </a>
+                    <div class="similarity-info">
+                        <div class="similarity-meter">
+                            <div class="similarity-bar">
+                                <div class="similarity-fill" data-width="{{ (sim_movie.score|float / 10) * 100 }}" style="width: 0%"></div>
+                            </div>
+                            <div class="similarity-text">
+                                <span class="similarity-percentage">{{ "%.0f"|format((sim_movie.score|float / 10) * 100) }}%</span>
+                                <span class="similarity-label">相似度</span>
+                            </div>
+                        </div>
+                        <div class="similarity-reason">
+                            {% if sim_movie.similarity_reason %}
+                                {% if sim_movie.similarity_reason.type == 'director' %}
+                                    <i class="fas fa-user"></i> {{ sim_movie.similarity_reason.reason }}
+                                {% elif sim_movie.similarity_reason.type == 'actors' %}
+                                    <i class="fas fa-users"></i> {{ sim_movie.similarity_reason.reason }}
+                                {% elif sim_movie.similarity_reason.type == 'genres' %}
+                                    <i class="fas fa-film"></i> {{ sim_movie.similarity_reason.reason }}
+                                {% elif sim_movie.similarity_reason.type == 'year' %}
+                                    <i class="fas fa-calendar-alt"></i> {{ sim_movie.similarity_reason.reason }}
+                                {% elif sim_movie.similarity_reason.type == 'popular' %}
+                                    <i class="fas fa-fire"></i> {{ sim_movie.similarity_reason.reason }}
+                                {% else %}
+                                    <i class="fas fa-check"></i> {{ sim_movie.similarity_reason.reason }}
+                                {% endif %}
+                            {% elif sim_movie.genres and movie_genres and sim_movie.genres|length > 0 and movie_genres|length > 0 %}
+                                {% set common_genres = sim_movie.genres|intersect(movie_genres)|list %}
+                                {% if common_genres|length > 0 %}
+                                    <i class="fas fa-film"></i> 类型相似：{{ common_genres|join('、') }}
+                                {% else %}
+                                    <i class="fas fa-check"></i> 推荐内容
+                                {% endif %}
+                            {% else %}
+                                <i class="fas fa-check"></i> 推荐内容
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- 新增Toast通知容器 -->
+<div class="toast-container" id="toastContainer"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // 静态资源前缀（方便在内联JS中安全使用）
+    var STATIC_PREFIX = "{{ url_for('static', filename='') }}";
+    // 初始化评分星星
+    const ratingValue = document.querySelector('.rating-value');
+    const stars = document.querySelectorAll('.stars-container input');
+
+    stars.forEach(star => {
+        star.addEventListener('change', function() {
+            if (this.checked) {
+                ratingValue.textContent = this.value;
+            }
+        });
+    });
+    
+    // 未登录用户点击回复按钮时显示提示
+    function redirectToLogin() {
+        // 弹出提示信息
+        alert('请先登录');
+        // 移除跳转逻辑
+    }
+    
+    // 初始化界面组件
+    document.addEventListener('DOMContentLoaded', function() {
+        // 设置星级评分条宽度
+        const starsInner = document.querySelector('.stars-inner');
+        if (starsInner && starsInner.dataset.width) {
+            starsInner.style.width = starsInner.dataset.width + '%';
+        }
+        
+        // 设置相似度条宽度
+        document.querySelectorAll('.similarity-fill').forEach(fill => {
+            if (fill.dataset.width) {
+                fill.style.width = fill.dataset.width + '%';
+            }
+        });
+        
+        // 处理回复按钮点击
+        document.querySelectorAll('.reply-button').forEach(button => {
+            button.addEventListener('click', function() {
+                const isAuthenticated = JSON.parse(this.dataset.authenticated);
+                if (isAuthenticated) {
+                    toggleReplyForm(this.dataset.reviewId);
+                } else {
+                    redirectToLogin();
+                }
+            });
+        });
+        
+        // 评论字数计数功能
+        const commentTextarea = document.getElementById('commentTextarea');
+        const charCount = document.getElementById('charCount');
+        if (commentTextarea && charCount) {
+            const counterElement = charCount.parentElement;
+            const maxLength = 500;
+            
+            // 初始化字数显示
+            charCount.textContent = commentTextarea.value.length;
+            
+            // 为文本框添加输入监听
+            commentTextarea.addEventListener('input', function() {
+                const currentLength = this.value.length;
+                charCount.textContent = currentLength;
+                
+                // 根据剩余字数更新样式
+                if (currentLength >= maxLength) {
+                    counterElement.classList.add('limit-reached');
+                    counterElement.classList.remove('warning');
+                } else if (currentLength >= maxLength * 0.8) {
+                    counterElement.classList.add('warning');
+                    counterElement.classList.remove('limit-reached');
+                } else {
+                    counterElement.classList.remove('warning', 'limit-reached');
+                }
+            });
+            
+            // 触发一次输入事件以初始化计数器
+            commentTextarea.dispatchEvent(new Event('input'));
+        }
+        
+        // 为所有回复文本框添加输入监听
+        const replyTextareas = document.querySelectorAll('.reply-textarea');
+        const maxReplyLength = 200;
+        
+        replyTextareas.forEach(textarea => {
+            const replyId = textarea.getAttribute('data-reply-id');
+            const charCountElement = document.getElementById(`replyCharCount-${replyId}`);
+            if (charCountElement) {
+                const counterElement = charCountElement.parentElement;
+                
+                // 初始化字数显示
+                charCountElement.textContent = textarea.value.length;
+                
+                // 为文本框添加输入监听
+                textarea.addEventListener('input', function() {
+                    const currentLength = this.value.length;
+                    charCountElement.textContent = currentLength;
+                    
+                    // 根据剩余字数更新样式
+                    if (currentLength >= maxReplyLength) {
+                        counterElement.classList.add('limit-reached');
+                        counterElement.classList.remove('warning');
+                    } else if (currentLength >= maxReplyLength * 0.8) {
+                        counterElement.classList.add('warning');
+                        counterElement.classList.remove('limit-reached');
+                    } else {
+                        counterElement.classList.remove('warning', 'limit-reached');
+                    }
+                });
+            }
+        });
+
+        // 处理评分表单AJAX提交
+        const ratingForm = document.getElementById('ratingForm');
+        if (ratingForm) {
+            ratingForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                // 获取评分值
+                const ratingInput = document.querySelector('input[name="rating"]:checked');
+                if (!ratingInput) {
+                    showToast('请选择评分', 'error');
+                    return;
+                }
+                
+                // 准备表单数据
+                const formData = new FormData();
+                formData.append('rating', parseFloat(ratingInput.value));
+                formData.append('comment', document.getElementById('commentTextarea').value);
+                
+                // 提交按钮添加loading状态
+                const submitButton = this.querySelector('.submit-rating');
+                const originalText = submitButton.textContent;
+                submitButton.disabled = true;
+                submitButton.textContent = '提交中...';
+                
+                // 设置请求超时
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 10000); // 10秒超时
+                
+                // 发送AJAX请求
+                fetch('{{ url_for("main.rate_movie", movie_id=movie[0]) }}', {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    credentials: 'same-origin',
+                    signal: controller.signal
+                })
+                .then(response => {
+                    clearTimeout(timeoutId);
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.success) {
+                        // 成功提示 - 使用alert替代showToast，与退出登录弹窗保持一致
+                        alert(data.message || '评分成功');
+                        
+                        // 无需等待后台热度更新完成，直接显示成功
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 500); // 缩短刷新时间，因为alert是阻塞的
+                    } else {
+                        // 错误提示
+                        alert(data.message || '评分失败，请稍后再试');
+                    }
+                })
+                .catch(error => {
+                    clearTimeout(timeoutId);
+                    console.error('评分提交失败:', error);
+                    
+                    if (error.name === 'AbortError') {
+                        // 请求超时，但可能已经成功处理
+                        alert('评分请求超时，但可能已成功提交。页面将在刷新以查看结果。');
+                        window.location.reload();
+                    } else {
+                        alert('评分失败，请稍后再试');
+                    }
+                })
+                .finally(() => {
+                    // 恢复按钮状态
+                    submitButton.disabled = false;
+                    submitButton.textContent = originalText;
+                });
+            });
+        }
+    });
+
+    // 点赞功能
+    document.addEventListener('DOMContentLoaded', function() {
+        const likeButtons = document.querySelectorAll('.like-button');
+
+        likeButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const ratingId = this.getAttribute('data-rating-id');
+                const likeCount = this.querySelector('.like-count');
+                const likeIcon = this.querySelector('i');
+
+                // 防止重复点击
+                if (button.classList.contains('loading')) {
+                    return;
+                }
+
+                // 添加loading状态
+                button.classList.add('loading');
+
+                // 发送AJAX请求
+                fetch(`{{ url_for('main.like_comment_endpoint', rating_id=0) }}`.replace('0', ratingId), {
+                    method: 'POST',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Content-Type': 'application/json'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    // 更新按钮状态
+                    if (data.liked) {
+                        button.classList.add('liked');
+                        likeIcon.classList.remove('far');
+                        likeIcon.classList.add('fas');
+                    } else {
+                        button.classList.remove('liked');
+                        likeIcon.classList.remove('fas');
+                        likeIcon.classList.add('far');
+                    }
+
+                    // 更新点赞数
+                    likeCount.textContent = data.likeCount;
+
+                    // 移除loading状态
+                    button.classList.remove('loading');
+                })
+                .catch(error => {
+                    console.error('点赞失败:', error);
+                    button.classList.remove('loading');
+                    alert('操作失败，请稍后再试');
+                });
+            });
+        });
+    });
+
+    // 刷新相似电影
+    document.addEventListener('DOMContentLoaded', function() {
+        const refreshButton = document.getElementById('refresh-similar-movies');
+        const notificationElement = document.getElementById('similar-refresh-notification');
+
+        if (refreshButton) {
+            refreshButton.addEventListener('click', function() {
+                // 获取当前显示的电影ID列表
+                const movieContainer = document.getElementById('similar-movies-container');
+                const movieItems = movieContainer.querySelectorAll('.related-item');
+                const currentMovies = Array.from(movieItems).map(item => {
+                    return parseInt(item.getAttribute('data-movie-id') || '0');
+                });
+
+                // 获取当前电影ID
+                const movieId = parseInt(document.getElementById('similar-movies-container').dataset.movieId || '0');
+
+                // 添加loading状态
+                refreshButton.disabled = true;
+                refreshButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 加载中...';
+
+                // 发送AJAX请求
+                fetch(`/refresh_similar_movies/${movieId}`, {
+                    method: 'POST',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        current_movies: currentMovies
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // 清空容器
+                        movieContainer.innerHTML = '';
+
+                        // 添加新电影
+                        data.movies.forEach(movie => {
+                            // 构建相似理由HTML
+                            function renderSimilarityReason(reason) {
+                                if (!reason) return '';
+                                if (reason.type === 'director') return `<i class="fas fa-user"></i> ${reason.reason}`;
+                                if (reason.type === 'actors') return `<i class="fas fa-users"></i> ${reason.reason}`;
+                                if (reason.type === 'genres') return `<i class="fas fa-film"></i> ${reason.reason}`;
+                                if (reason.type === 'year') return `<i class="fas fa-calendar-alt"></i> ${reason.reason}`;
+                                if (reason.type === 'popular') return `<i class="fas fa-fire"></i> ${reason.reason}`;
+                                return `<i class="fas fa-check"></i> ${reason.reason}`;
+                            }
+
+                            const movieItem = document.createElement('div');
+                            movieItem.className = 'related-item-wrapper';
+                            movieItem.setAttribute('data-movie-id', movie.id);
+
+                            movieItem.innerHTML = `
+                                <a href="/movie/${movie.id}" class="related-item">
+                                    <img src="${movie.image || (STATIC_PREFIX + 'img/default-movie-placeholder.png')}" alt="${movie.title}">
+                                    <div class="related-title">${movie.title}</div>
+                                    <div class="related-score">
+                                        <div class="rating-badge">
+                                            <i class="fas fa-star"></i>
+                                            <span>${movie.score ? movie.score.toFixed(1) : '0.0'}</span>
+                                        </div>
+                                        ${movie.vote_count && movie.vote_count > 0 ? `<small>${movie.vote_count}人评价</small>` : ''}
+                                    </div>
+                                </a>
+                                <div class="similarity-info">
+                                    <div class="similarity-meter">
+                                        <div class="similarity-bar">
+                                            <div class="similarity-fill" data-width="${(movie.score / 10) * 100}" style="width: 0%"></div>
+                                        </div>
+                                        <div class="similarity-text">
+                                            <span class="similarity-percentage">${Math.round((movie.score / 10) * 100)}%</span>
+                                            <span class="similarity-label">相似度</span>
+                                        </div>
+                                    </div>
+                                    <div class="similarity-reason">
+                                        ${renderSimilarityReason(movie.similarity_reason)}
+                                    </div>
+                                </div>
+                            `;
+                            movieContainer.appendChild(movieItem);
+                        });
+
+                        // 重新设置相似度条宽度
+                        document.querySelectorAll('.similarity-fill').forEach(fill => {
+                            if (fill.dataset.width) {
+                                fill.style.width = fill.dataset.width + '%';
+                            }
+                        });
+
+                        // 显示更新通知
+                        if (notificationElement) {
+                            notificationElement.style.display = 'block';
+                            setTimeout(() => {
+                                notificationElement.style.display = 'none';
+                            }, 3000);
+                        }
+                    } else {
+                        alert(data.message || '刷新推荐失败');
+                    }
+                })
+                .catch(error => {
+                    console.error('刷新推荐失败:', error);
+                    alert('刷新推荐失败，请稍后再试');
+                })
+                .finally(() => {
+                    // 恢复按钮状态
+                    refreshButton.disabled = false;
+                    refreshButton.innerHTML = '<i class="fas fa-sync-alt"></i> 换一换';
+                });
+            });
+        }
+    });
+
+    // 评论回复相关功能
+    function toggleReplyForm(reviewId) {
+        const replyForm = document.getElementById(`reply-form-${reviewId}`);
+        replyForm.classList.toggle('active');
+
+        // 如果表单是显示状态，自动聚焦输入框并初始化计数器
+        if (replyForm.classList.contains('active')) {
+            const textarea = replyForm.querySelector('textarea');
+            if (textarea) {
+                textarea.focus();
+                
+                // 触发输入事件以初始化计数器
+                textarea.dispatchEvent(new Event('input'));
+            }
+        }
+    }
+
+    // 新增Toast通知函数
+    function showToast(message, type = 'info', duration = 3000) {
+        const toastContainer = document.getElementById('toastContainer');
+        
+        // 创建Toast元素
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+        toast.textContent = message;
+        
+        // 添加到容器
+        toastContainer.appendChild(toast);
+        
+        // 显示动画
+        setTimeout(() => {
+            toast.classList.add('show');
+        }, 10);
+        
+        // 自动关闭
+        setTimeout(() => {
+            toast.classList.remove('show');
+            setTimeout(() => {
+                toastContainer.removeChild(toast);
+            }, 300);
+        }, duration);
+    }
+</script>
+{% endblock %}

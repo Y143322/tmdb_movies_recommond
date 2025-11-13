@@ -1,0 +1,436 @@
+{% extends "admin/admin_base.html" %}
+
+{% block page_title %}仪表盘{% endblock %}
+
+{% block admin_content %}
+<div class="dashboard-stats">
+    <div class="stat-card">
+        <i class="fas fa-users"></i>
+        <div class="stat-info">
+            <h4>总用户数</h4>
+            <p>{{ total_users }}</p>
+        </div>
+    </div>
+    <div class="stat-card">
+        <i class="fas fa-film"></i>
+        <div class="stat-info">
+            <h4>总电影数</h4>
+            <p>{{ total_movies }}</p>
+        </div>
+    </div>
+    <div class="stat-card">
+        <i class="fas fa-star"></i>
+        <div class="stat-info">
+            <h4>总评分数</h4>
+            <p>{{ total_ratings }}</p>
+        </div>
+    </div>
+</div>
+
+<div class="dashboard-charts">
+    <div class="chart-row">
+        <div class="chart-container">
+            <h3>电影类型分布</h3>
+            <div class="chart-wrapper">
+                <canvas id="genresChart"></canvas>
+            </div>
+        </div>
+        <div class="chart-container">
+            <h3>电影评分分布</h3>
+            <div class="chart-wrapper">
+                <canvas id="ratingsChart"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="chart-row">
+        <div class="chart-container">
+            <h3>热门电影排行</h3>
+            <div class="chart-wrapper">
+                <canvas id="popularMoviesChart"></canvas>
+            </div>
+        </div>
+        <div class="chart-container">
+            <h3>用户增长趋势</h3>
+            <div class="chart-wrapper">
+                <canvas id="userGrowthChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="dashboard-actions">
+    <h3>快捷操作</h3>
+    <a href="{{ url_for('admin.reviews') }}" class="action-btn">管理评论</a>
+    <a href="{{ url_for('admin.movie_data_management') }}" class="action-btn">电影数据管理</a>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<!-- 引入 Chart.js 图表库 -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+
+<script>
+// 定义一些通用的图表颜色
+const chartColors = [
+    'rgba(255, 99, 132, 0.8)',   // 红色
+    'rgba(54, 162, 235, 0.8)',   // 蓝色
+    'rgba(255, 206, 86, 0.8)',   // 黄色
+    'rgba(75, 192, 192, 0.8)',   // 绿色
+    'rgba(153, 102, 255, 0.8)',  // 紫色
+    'rgba(255, 159, 64, 0.8)',   // 橙色
+    'rgba(199, 199, 199, 0.8)',  // 灰色
+    'rgba(83, 102, 255, 0.8)',   // 蓝紫色
+    'rgba(255, 99, 255, 0.8)',   // 粉色
+    'rgba(0, 162, 162, 0.8)'     // 青色
+];
+
+// 添加加载状态指示器
+function showLoading(chartId) {
+    const container = document.getElementById(chartId).parentNode;
+    container.classList.add('loading');
+    
+    const loadingIndicator = document.createElement('div');
+    loadingIndicator.className = 'loading-indicator';
+    loadingIndicator.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 加载中...';
+    
+    container.appendChild(loadingIndicator);
+}
+
+function hideLoading(chartId) {
+    const container = document.getElementById(chartId).parentNode;
+    container.classList.remove('loading');
+    
+    const loadingIndicator = container.querySelector('.loading-indicator');
+    if (loadingIndicator) {
+        container.removeChild(loadingIndicator);
+    }
+}
+
+// 加载电影类型分布图表
+function loadGenresChart() {
+    const ctx = document.getElementById('genresChart').getContext('2d');
+    showLoading('genresChart');
+    
+    fetch('{{ url_for("admin.movie_genres_distribution") }}')
+        .then(response => response.json())
+        .then(data => {
+            hideLoading('genresChart');
+            
+            new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: data.labels,
+                    datasets: [{
+                        data: data.data,
+                        backgroundColor: chartColors,
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'right',
+                            labels: {
+                                font: {
+                                    size: 12
+                                }
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const label = context.label || '';
+                                    const value = context.raw || 0;
+                                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                    const percentage = Math.round((value / total) * 100);
+                                    return `${label}: ${value} (${percentage}%)`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        })
+        .catch(error => {
+            hideLoading('genresChart');
+            console.error('加载电影类型分布数据失败:', error);
+            document.getElementById('genresChart').parentNode.innerHTML = '<div class="error-message">加载数据失败</div>';
+        });
+}
+
+// 加载电影评分分布图表
+function loadRatingsChart() {
+    const ctx = document.getElementById('ratingsChart').getContext('2d');
+    showLoading('ratingsChart');
+    
+    fetch('{{ url_for("admin.movie_ratings_distribution") }}')
+        .then(response => response.json())
+        .then(data => {
+            hideLoading('ratingsChart');
+            
+            new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: data.labels,
+                    datasets: [{
+                        data: data.data,
+                        backgroundColor: chartColors,
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'right',
+                            labels: {
+                                font: {
+                                    size: 12
+                                }
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const label = context.label || '';
+                                    const value = context.raw || 0;
+                                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                    const percentage = Math.round((value / total) * 100);
+                                    return `${label}: ${value} (${percentage}%)`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        })
+        .catch(error => {
+            hideLoading('ratingsChart');
+            console.error('加载电影评分分布数据失败:', error);
+            document.getElementById('ratingsChart').parentNode.innerHTML = '<div class="error-message">加载数据失败</div>';
+        });
+}
+
+// 加载热门电影排行图表
+function loadPopularMoviesChart() {
+    const ctx = document.getElementById('popularMoviesChart').getContext('2d');
+    showLoading('popularMoviesChart');
+    
+    fetch('{{ url_for("admin.popular_movies") }}')
+        .then(response => response.json())
+        .then(data => {
+            hideLoading('popularMoviesChart');
+            
+            // 反转数据以便在横向条形图中从上到下显示排名
+            const labels = [...data.labels].reverse();
+            const ratings = [...data.ratings].reverse();
+            const counts = [...data.counts].reverse();
+            
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: '评分',
+                            data: ratings,
+                            backgroundColor: 'rgba(54, 162, 235, 0.8)',
+                            borderColor: 'rgba(54, 162, 235, 1)',
+                            borderWidth: 1,
+                            yAxisID: 'y'
+                        },
+                        {
+                            label: '评论数',
+                            data: counts,
+                            backgroundColor: 'rgba(255, 99, 132, 0.8)',
+                            borderColor: 'rgba(255, 99, 132, 1)',
+                            borderWidth: 1,
+                            yAxisID: 'y1'
+                        }
+                    ]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                font: {
+                                    size: 11
+                                },
+                                callback: function(value, index) {
+                                    // 截断长电影名
+                                    const title = this.getLabelForValue(value);
+                                    return title.length > 20 ? title.substring(0, 20) + '...' : title;
+                                }
+                            }
+                        },
+                        x: {
+                            beginAtZero: true,
+                            position: 'top'
+                        },
+                        y1: {
+                            beginAtZero: true,
+                            position: 'right',
+                            grid: {
+                                drawOnChartArea: false
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        },
+                        tooltip: {
+                            callbacks: {
+                                title: function(context) {
+                                    // 显示完整电影名
+                                    return labels[context[0].dataIndex];
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        })
+        .catch(error => {
+            hideLoading('popularMoviesChart');
+            console.error('加载热门电影排行数据失败:', error);
+            document.getElementById('popularMoviesChart').parentNode.innerHTML = '<div class="error-message">加载数据失败</div>';
+        });
+}
+
+// 加载用户增长趋势图表
+function loadUserGrowthChart() {
+    const ctx = document.getElementById('userGrowthChart').getContext('2d');
+    showLoading('userGrowthChart');
+    
+    fetch('{{ url_for("admin.user_growth") }}')
+        .then(response => response.json())
+        .then(data => {
+            hideLoading('userGrowthChart');
+            
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.labels,
+                    datasets: [{
+                        label: '新增用户数',
+                        data: data.data,
+                        fill: false,
+                        backgroundColor: 'rgba(75, 192, 192, 0.8)',
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        tension: 0.3,
+                        pointRadius: 4,
+                        pointHoverRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                precision: 0
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'top'
+                        }
+                    }
+                }
+            });
+        })
+        .catch(error => {
+            hideLoading('userGrowthChart');
+            console.error('加载用户增长趋势数据失败:', error);
+            document.getElementById('userGrowthChart').parentNode.innerHTML = '<div class="error-message">加载数据失败</div>';
+        });
+}
+
+// 页面加载后初始化所有图表
+document.addEventListener('DOMContentLoaded', function() {
+    // 使用延迟加载来提高页面响应速度
+    setTimeout(loadGenresChart, 100);
+    setTimeout(loadRatingsChart, 300);
+    setTimeout(loadPopularMoviesChart, 500);
+    setTimeout(loadUserGrowthChart, 700);
+});
+</script>
+{% endblock %}
+
+{% block head %}
+{{ super() }}
+<style>
+/* 图表容器样式 */
+.dashboard-charts {
+    margin-top: 30px;
+}
+
+.chart-row {
+    display: flex;
+    gap: 20px;
+    margin-bottom: 20px;
+}
+
+@media (max-width: 768px) {
+    .chart-row {
+        flex-direction: column;
+    }
+}
+
+.chart-container {
+    flex: 1;
+    background-color: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    padding: 20px;
+    position: relative;
+}
+
+.chart-container h3 {
+    margin-top: 0;
+    margin-bottom: 15px;
+    font-size: 18px;
+    color: #333;
+    text-align: center;
+}
+
+.chart-wrapper {
+    height: 300px;
+    position: relative;
+}
+
+/* 加载指示器样式 */
+.loading-indicator {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    color: #666;
+}
+
+.loading-indicator i {
+    margin-right: 5px;
+}
+
+/* 错误消息样式 */
+.error-message {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: #d9534f;
+    text-align: center;
+}
+</style>
+{% endblock %}

@@ -1,0 +1,539 @@
+<!-- profile.html: -->
+{% extends "base.html" %}
+
+{% block title %}个人资料{% endblock %}
+
+{% block head %}
+<style>
+    .profile-container {
+        max-width: 800px;
+        margin: 30px auto;
+        padding: 20px;
+        background-color: #fff;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .profile-container h2 {
+        color: #333;
+        margin-top: 30px;
+        margin-bottom: 20px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid #eee;
+    }
+
+    .profile-container p {
+        font-size: 16px;
+        color: #666;
+        margin-bottom: 20px;
+    }
+
+    .profile-container form {
+        margin-bottom: 30px;
+    }
+
+    .profile-container label {
+        display: block;
+        margin-bottom: 8px;
+        color: #555;
+        font-weight: bold;
+    }
+
+    .profile-container input[type="email"],
+    .profile-container input[type="password"] {
+        width: 100%;
+        padding: 10px;
+        margin-bottom: 15px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 14px;
+    }
+
+    .profile-container input[type="submit"] {
+        background-color: #4CAF50;
+        color: white;
+        padding: 12px 20px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: bold;
+    }
+
+    .profile-container input[type="submit"]:hover {
+        background-color: #45a049;
+    }
+
+    .back-link {
+        margin-top: 20px;
+        text-align: center;
+    }
+
+    .back-link a {
+        color: #666;
+        text-decoration: none;
+        font-weight: bold;
+    }
+
+    .back-link a:hover {
+        color: #4CAF50;
+    }
+    
+    /* 类型偏好样式 */
+    .genre-preference {
+        margin-bottom: 15px;
+    }
+    
+    .genre-name {
+        font-weight: 500;
+        font-size: 16px;
+    }
+    
+    .genre-score {
+        font-weight: bold;
+        padding: 5px 10px;
+        border-radius: 15px;
+    }
+    
+    /* 进度条基础样式 - 加强定义 */
+    .progress {
+        height: 10px !important;
+        border-radius: 5px;
+        margin-top: 5px;
+        background-color: #f5f5f5;
+        overflow: hidden;
+        display: block;
+        width: 100%;
+        position: relative;
+    }
+    
+    .progress-bar {
+        height: 100%;
+        border-radius: 5px;
+        display: block;
+        position: absolute;
+        left: 0;
+        top: 0;
+        min-width: 2%;
+        text-align: center;
+        transition: width 0.4s ease;
+    }
+    
+    .badge {
+        padding: 5px 10px;
+        margin-right: 5px;
+        display: inline-block;
+        border-radius: 15px;
+        color: white;
+        font-weight: bold;
+    }
+    
+    .bg-danger {
+        background-color: #dc3545;
+    }
+    
+    .bg-warning {
+        background-color: #ffc107;
+        color: #212529;
+    }
+    
+    .bg-success {
+        background-color: #28a745;
+    }
+    
+    .bg-primary {
+        background-color: #3949ab;
+    }
+    
+    .profile-section {
+        background-color: #fff;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        padding: 20px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .profile-section h3 {
+        margin-top: 0;
+        margin-bottom: 15px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid #eee;
+        color: #333;
+    }
+    
+    .action-buttons {
+        margin-top: 15px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+    
+    .btn {
+        display: inline-block;
+        font-weight: 400;
+        text-align: center;
+        white-space: nowrap;
+        vertical-align: middle;
+        user-select: none;
+        border: 1px solid transparent;
+        padding: 0.375rem 0.75rem;
+        font-size: 1rem;
+        line-height: 1.5;
+        border-radius: 0.25rem;
+        transition: all 0.15s ease-in-out;
+    }
+    
+    .btn-primary {
+        color: #fff;
+        background-color: #3949ab;
+        border-color: #3949ab;
+    }
+    
+    .btn-outline-primary {
+        color: #3949ab;
+        background-color: transparent;
+        border-color: #3949ab;
+    }
+    
+    .btn-primary:hover {
+        background-color: #303f9f;
+    }
+    
+    .btn-outline-primary:hover {
+        color: #fff;
+        background-color: #3949ab;
+    }
+    
+    .d-flex {
+        display: flex;
+    }
+    
+    .justify-content-between {
+        justify-content: space-between;
+    }
+    
+    .align-items-center {
+        align-items: center;
+    }
+    
+    .alert {
+        position: relative;
+        padding: 0.75rem 1.25rem;
+        margin-bottom: 1rem;
+        border: 1px solid transparent;
+        border-radius: 0.25rem;
+    }
+    
+    .alert-info {
+        color: #0c5460;
+        background-color: #d1ecf1;
+        border-color: #bee5eb;
+    }
+    
+    /* 辅助类 */
+    .mb-3 {
+        margin-bottom: 1rem;
+    }
+    
+    .mb-1 {
+        margin-bottom: 0.25rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="profile-container">
+    <h2 style="text-align: center; margin-top: 0;">个人中心</h2>
+    
+    <div class="profile-section">
+        <h3>基本信息</h3>
+    <p>用户名: {{ user.username }}</p>
+        <p>邮箱: {{ user.email or '未设置' }}</p>
+        
+        <div class="action-buttons">
+            <a href="{{ url_for('main.user_ratings') }}" class="btn btn-outline-primary">我的评分</a>
+            <a href="{{ url_for('main.watch_history') }}" class="btn btn-outline-primary">观影历史</a>
+        </div>
+    </div>
+    
+    <div class="profile-section">
+        <h3>电影类型偏好</h3>
+        
+        {% if user_genres %}
+            {% for genre in user_genres %}
+                <div class="genre-preference mb-3">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <span class="genre-name">{{ genre.name }}</span>
+                        <span class="genre-score badge {{ genre.badge_class }}">{{ genre.score | round(1) }}</span>
+                    </div>
+                    <div class="progress">
+                        <div class="progress-bar {{ genre.progress_class }}" role="progressbar" 
+                             style="width: {{ genre.percentage }}%;" 
+                             aria-valuenow="{{ genre.score }}" aria-valuemin="0" aria-valuemax="10">
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+            
+            <div class="action-buttons">
+                <button id="refresh-preferences-btn" class="btn btn-primary" onclick="refreshUserPreferences()">
+                    <i class="fas fa-sync-alt"></i> 刷新偏好数据
+                </button>
+            </div>
+            
+            <!-- 进度指示器 -->
+            <div id="refresh-progress-container" class="progress-container" style="display: none; margin-top: 15px;">
+                <div class="progress-info" style="text-align: center; margin-bottom: 8px;">
+                    <i class="fas fa-spinner fa-spin" style="color: #6a11cb;"></i>
+                    <span id="refresh-status-text">正在分析您的电影类型偏好...</span>
+                </div>
+                <div class="progress-bar-container" style="background-color: #e9ecef; border-radius: 10px; height: 20px; overflow: hidden;">
+                    <div id="refresh-progress-bar" class="progress-bar-fill" style="width: 0%; height: 100%; background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%); transition: width 0.3s ease; display: flex; align-items: center; justify-content: center; color: white; font-size: 12px; font-weight: bold;">
+                        0%
+                    </div>
+                </div>
+            </div>
+        {% else %}
+            <div class="alert alert-info">
+                <p style="margin-top: 0;">我们尚未收集到足够的评分数据来分析您的电影类型偏好。</p>
+                <p style="margin-bottom: 0;">请尝试对更多不同类型的电影进行评分，系统将自动分析您的偏好。</p>
+            </div>
+            
+            <div class="action-buttons">
+                <a href="{{ url_for('movies.show_movies_root', page=1) }}" class="btn btn-outline-primary">浏览电影</a>
+                <button id="refresh-preferences-btn-alt" class="btn btn-primary" onclick="refreshUserPreferences()">
+                    <i class="fas fa-sync-alt"></i> 立即分析偏好
+                </button>
+            </div>
+            
+            <!-- 进度指示器 (备用位置) -->
+            <div id="refresh-progress-container-alt" class="progress-container" style="display: none; margin-top: 15px;">
+                <div class="progress-info" style="text-align: center; margin-bottom: 8px;">
+                    <i class="fas fa-spinner fa-spin" style="color: #6a11cb;"></i>
+                    <span id="refresh-status-text-alt">正在分析您的电影类型偏好...</span>
+                </div>
+                <div class="progress-bar-container" style="background-color: #e9ecef; border-radius: 10px; height: 20px; overflow: hidden;">
+                    <div id="refresh-progress-bar-alt" class="progress-bar-fill" style="width: 0%; height: 100%; background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%); transition: width 0.3s ease; display: flex; align-items: center; justify-content: center; color: white; font-size: 12px; font-weight: bold;">
+                        0%
+                    </div>
+                </div>
+            </div>
+        {% endif %}
+        
+        <div style="margin-top: 15px;">
+            <h4>偏好分数说明</h4>
+            <ul style="list-style-type: none; padding-left: 0;">
+                <li><span class="badge bg-danger">1-3</span> - 不太喜欢</li>
+                <li><span class="badge bg-warning">4-6</span> - 一般喜欢</li>
+                <li><span class="badge bg-success">7-8</span> - 比较喜欢</li>
+                <li><span class="badge bg-primary">9-10</span> - 非常喜欢</li>
+            </ul>
+        </div>
+    </div>
+    
+    <div class="profile-section">
+        <h3>账户管理</h3>
+        
+    <form method="post">
+            <label for="email">更新邮箱:</label>
+            <input type="email" id="email" name="email" value="{{ user.email or '' }}" placeholder="请输入您的邮箱">
+        <input type="submit" value="更新邮箱">
+    </form>
+    
+    <form method="post">
+            <label for="old_password">修改密码:</label>
+            <input type="password" id="old_password" name="old_password" placeholder="请输入旧密码">
+        
+        <label for="new_password">新密码:</label>
+            <input type="password" id="new_password" name="new_password" placeholder="请输入新密码（至少8位）">
+        
+        <input type="submit" value="更新密码">
+    </form>
+    </div>
+    
+    <div class="back-link">
+        <a href="{{ url_for('main.index') }}">返回首页</a>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // 页面特定的进度条初始化代码
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('正在初始化个人中心页面进度条...');
+        
+        // 确保进度条正确显示
+        const progressBars = document.querySelectorAll('.progress-bar');
+        if (progressBars.length > 0) {
+            console.log('找到', progressBars.length, '个进度条元素');
+            
+            // 确保每个进度条都有正确的宽度和样式
+            progressBars.forEach(function(bar, index) {
+                const value = parseFloat(bar.getAttribute('aria-valuenow') || 0);
+                const percentage = Math.max(10, Math.min(100, value * 10));
+                
+                console.log(`进度条 ${index+1}: 值=${value}, 百分比=${percentage}%`);
+                
+                // 强制应用样式
+                bar.style.width = percentage + '%';
+                
+                // 使用动画方式展示进度条
+                setTimeout(function() {
+                    bar.style.transition = 'width 0.8s ease-out';
+                    bar.style.width = percentage + '%';
+                }, 100);
+            });
+        } else {
+            console.log('页面中没有找到进度条元素');
+        }
+        
+        // 安全机制：确保5秒后所有进度条都显示正确
+        setTimeout(function() {
+            progressBars.forEach(function(bar) {
+                const value = parseFloat(bar.getAttribute('aria-valuenow') || 0);
+                const percentage = Math.max(10, Math.min(100, value * 10));
+                bar.style.width = percentage + '%';
+                
+                // 根据分数值添加正确的样式类
+                if (value >= 9) {
+                    ensureClass(bar, 'bg-primary');
+                } else if (value >= 7) {
+                    ensureClass(bar, 'bg-success');
+                } else if (value >= 4) {
+                    ensureClass(bar, 'bg-warning');
+                } else {
+                    ensureClass(bar, 'bg-danger');
+                }
+            });
+            
+            // 辅助函数：确保元素有指定的CSS类
+            function ensureClass(element, className) {
+                if (!element.classList.contains(className)) {
+                    element.classList.add(className);
+                }
+            }
+        }, 5000);
+    });
+    
+    // 刷新用户偏好数据的函数
+    function refreshUserPreferences() {
+        const primaryBtn = document.getElementById('refresh-preferences-btn');
+        const altBtn = document.getElementById('refresh-preferences-btn-alt');
+        const primaryProgress = document.getElementById('refresh-progress-container');
+        const altProgress = document.getElementById('refresh-progress-container-alt');
+        const primaryProgressBar = document.getElementById('refresh-progress-bar');
+        const altProgressBar = document.getElementById('refresh-progress-bar-alt');
+        const primaryStatusText = document.getElementById('refresh-status-text');
+        const altStatusText = document.getElementById('refresh-status-text-alt');
+        
+        // 禁用按钮并显示加载状态
+        if (primaryBtn) {
+            primaryBtn.disabled = true;
+            primaryBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 分析中...';
+        }
+        if (altBtn) {
+            altBtn.disabled = true;
+            altBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 分析中...';
+        }
+        
+        // 显示进度容器
+        if (primaryProgress) primaryProgress.style.display = 'block';
+        if (altProgress) altProgress.style.display = 'block';
+        
+        // 模拟进度更新
+        let progress = 0;
+        const progressInterval = setInterval(() => {
+            progress += Math.random() * 20 + 5; // 随机增加5-25%
+            if (progress > 90) progress = 90; // 最大到90%，等待实际完成
+            
+            const progressText = Math.round(progress) + '%';
+            if (primaryProgressBar) {
+                primaryProgressBar.style.width = progress + '%';
+                primaryProgressBar.textContent = progressText;
+            }
+            if (altProgressBar) {
+                altProgressBar.style.width = progress + '%';
+                altProgressBar.textContent = progressText;
+            }
+        }, 300);
+        
+        // 发送 AJAX 请求
+        fetch('{{ url_for("main.refresh_user_preferences") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            // 清除进度更新
+            clearInterval(progressInterval);
+            
+            // 完成进度条
+            if (primaryProgressBar) {
+                primaryProgressBar.style.width = '100%';
+                primaryProgressBar.textContent = '100%';
+            }
+            if (altProgressBar) {
+                altProgressBar.style.width = '100%';
+                altProgressBar.textContent = '100%';
+            }
+            
+            // 更新状态文本
+            if (data.success) {
+                if (primaryStatusText) primaryStatusText.innerHTML = '<i class="fas fa-check" style="color: #28a745;"></i> 偏好数据更新成功！';
+                if (altStatusText) altStatusText.innerHTML = '<i class="fas fa-check" style="color: #28a745;"></i> 偏好数据更新成功！';
+                
+                // 延迟后刷新页面以显示新数据
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1500);
+            } else {
+                if (primaryStatusText) primaryStatusText.innerHTML = '<i class="fas fa-exclamation-triangle" style="color: #ffc107;"></i> ' + (data.message || '更新失败');
+                if (altStatusText) altStatusText.innerHTML = '<i class="fas fa-exclamation-triangle" style="color: #ffc107;"></i> ' + (data.message || '更新失败');
+                
+                // 恢复按钮状态
+                setTimeout(() => {
+                    resetRefreshButtons();
+                }, 3000);
+            }
+        })
+        .catch(error => {
+            console.error('刷新偏好数据失败:', error);
+            
+            // 清除进度更新
+            clearInterval(progressInterval);
+            
+            // 显示错误状态
+            if (primaryStatusText) primaryStatusText.innerHTML = '<i class="fas fa-times" style="color: #dc3545;"></i> 网络错误，请稍后重试';
+            if (altStatusText) altStatusText.innerHTML = '<i class="fas fa-times" style="color: #dc3545;"></i> 网络错误，请稍后重试';
+            
+            // 恢复按钮状态
+            setTimeout(() => {
+                resetRefreshButtons();
+            }, 3000);
+        });
+    }
+    
+    // 重置按钮状态的函数
+    function resetRefreshButtons() {
+        const primaryBtn = document.getElementById('refresh-preferences-btn');
+        const altBtn = document.getElementById('refresh-preferences-btn-alt');
+        const primaryProgress = document.getElementById('refresh-progress-container');
+        const altProgress = document.getElementById('refresh-progress-container-alt');
+        
+        if (primaryBtn) {
+            primaryBtn.disabled = false;
+            primaryBtn.innerHTML = '<i class="fas fa-sync-alt"></i> 刷新偏好数据';
+        }
+        if (altBtn) {
+            altBtn.disabled = false;
+            altBtn.innerHTML = '<i class="fas fa-sync-alt"></i> 立即分析偏好';
+        }
+        if (primaryProgress) primaryProgress.style.display = 'none';
+        if (altProgress) altProgress.style.display = 'none';
+    }
+</script>
+{% endblock %} 

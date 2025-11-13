@@ -1,0 +1,718 @@
+/* movies.css */
+
+/* Container */
+.movies-container {
+    max-width: 1200px;
+    margin: 20px auto;
+    padding: 0 15px;
+}
+
+/* 更新区域 */
+.update-section {
+    background-color: #f9f9f9;
+    padding: 20px;
+    border-radius: 8px;
+    margin-bottom: 30px;
+    text-align: center;
+    border: 1px solid #eee;
+}
+
+#update-button {
+    background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%);
+    color: white;
+    padding: 12px 30px;
+    border: none;
+    border-radius: 30px;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: bold;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 10px rgba(106, 17, 203, 0.2);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+#update-button i {
+    transition: transform 0.5s ease;
+}
+
+#update-button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 15px rgba(106, 17, 203, 0.3);
+}
+
+#update-button:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+    opacity: 0.7;
+}
+
+#update-button:disabled i.fa-spinner {
+    animation: fa-spin 1s infinite linear;
+}
+
+.progress-container {
+    margin-top: 20px;
+    max-width: 600px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.progress-bar {
+    width: 100%;
+    background-color: #e9ecef;
+    border-radius: 30px;
+    overflow: hidden;
+    height: 25px; /* 稍微加高 */
+    position: relative;
+}
+
+.progress-bar-fill {
+    height: 100%;
+    background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%);
+    transition: width 0.5s ease-out; /* 更平滑的过渡 */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 13px;
+    font-weight: bold;
+    white-space: nowrap;
+}
+
+.progress-status {
+    margin-top: 12px;
+    color: #555;
+    font-size: 15px;
+    min-height: 20px; /* 避免文字跳动 */
+}
+
+/* 电影列表样式 */
+.movie-list {
+    list-style-type: none;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 25px;
+    margin: 0; /* 移除上下边距，由容器控制 */
+    width: 100%;
+}
+
+/* 确保每个电影卡片高度和宽度一致 */
+.movie-list li {
+    width: 100%;
+}
+
+.movie-list li a {
+    display: block;
+    height: 100%;
+    width: 100%;
+    text-decoration: none;
+    color: inherit;
+}
+
+.card.movie-card {
+    height: 100%;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+}
+
+.card.movie-card .image {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.card.movie-card .image img {
+    width: 100%;
+    height: 280px;
+    object-fit: cover;
+    border-radius: 12px 12px 0 0;
+    box-sizing: border-box;
+}
+
+.card.movie-card .image .no-image {
+    width: 100%;
+    height: 280px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #f5f5f5;
+    color: #999;
+    font-size: 16px;
+    border-radius: 12px 12px 0 0;
+}
+
+.card.movie-card .info {
+    width: 100%;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    padding: 0 15px 15px;
+}
+
+.card.movie-card .info h3 {
+    margin: 0 0 10px 0;
+    font-size: 18px;
+    color: #333;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-align: center;
+}
+
+.card.movie-card .info p {
+    margin: 5px 0;
+    font-size: 14px;
+    color: #666;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* 电影类型标签样式 */
+.genre-tag {
+    display: inline-block;
+    background-color: #f0f0f0;
+    color: #555;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    margin-right: 5px;
+    margin-bottom: 5px;
+}
+
+.genres {
+    height: 40px; /* 设置固定高度 */
+    overflow: hidden; /* 超出部分隐藏 */
+}
+
+.genres p {
+    margin-top: 5px;
+    margin-bottom: 5px;
+}
+
+.movie-list li {
+    background-color: #fff;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 3px 12px rgba(0,0,0,0.1);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    height: 100%;
+    display: flex;
+    width: 100%;
+}
+
+.movie-list li:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+}
+
+.movie-link {
+    text-decoration: none;
+    color: inherit;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+    box-sizing: border-box;
+}
+
+/* 移除重复样式，已在.card.movie-card .image img中定义 */
+
+/* 移除重复样式，已在.card.movie-card .info中定义 */
+
+/* 移除重复样式，已在.card.movie-card .info h3中定义 */
+
+.movie-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    color: #666;
+    font-size: 14px;
+    flex-grow: 1;
+}
+
+.movie-meta span {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.movie-meta i {
+    width: 16px;
+    flex-shrink: 0;
+    color: #6a11cb;
+}
+
+.rating i {
+    color: #ffd700;
+}
+
+/* 搜索相关样式 */
+.search-container {
+    margin-bottom: 30px;
+    width: 100%;
+    padding: 0 15px;
+}
+
+.search-form {
+    display: flex;
+    max-width: 600px;
+    margin: 0 auto;
+    border-radius: 50px;
+    overflow: hidden;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease;
+    position: relative;
+    border: 1px solid rgba(106, 17, 203, 0.1);
+    height: 50px; /* 固定高度确保一致性 */
+}
+
+.search-form:focus-within {
+    box-shadow: 0 6px 20px rgba(106, 17, 203, 0.2);
+    transform: translateY(-2px);
+}
+
+.search-input {
+    flex: 1;
+    padding: 0 25px;
+    border: none;
+    font-size: 16px;
+    outline: none;
+    background-color: #fff;
+    transition: all 0.3s ease;
+    height: 100%;
+    line-height: 50px; /* 垂直居中文本 */
+    box-sizing: border-box;
+    width: 100%;
+    display: block;
+}
+
+.search-input::placeholder {
+    color: #aaa;
+    transition: color 0.3s ease;
+    line-height: 50px; /* 确保占位符也垂直居中 */
+}
+
+.search-input:focus::placeholder {
+    color: #6a11cb;
+}
+
+.search-button {
+    background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%);
+    color: white;
+    border: none;
+    padding: 0 30px;
+    cursor: pointer;
+    font-size: 18px;
+    transition: all 0.3s;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 80px;
+}
+
+.search-button:hover {
+    background: linear-gradient(135deg, #5910a8 0%, #1e60cc 100%);
+}
+
+.search-button i {
+    transition: transform 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.search-button:hover i {
+    transform: scale(1.2);
+}
+
+/* 修复搜索表单在某些浏览器中的显示问题 */
+@supports (-webkit-appearance: none) or (-moz-appearance: none) {
+    .search-form {
+        display: flex;
+        align-items: stretch;
+    }
+    
+    .search-input {
+        -webkit-appearance: none;
+        -moz-appearance: none;
+        appearance: none;
+        margin: 0;
+    }
+}
+
+.search-result-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 25px;
+    padding: 12px 20px;
+    background-color: #f9f9f9;
+    border-radius: 10px;
+    font-size: 15px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    border-left: 4px solid #6a11cb;
+}
+
+.search-result-info p {
+    color: #444;
+    margin: 0;
+    font-weight: 500;
+}
+
+.back-to-all {
+    color: #6a11cb;
+    text-decoration: none;
+    font-weight: 500;
+    transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+}
+
+.back-to-all:hover {
+    color: #2575fc;
+    text-decoration: none;
+}
+
+.back-to-all:hover::after {
+    content: " →";
+    display: inline-block;
+    transition: transform 0.2s;
+    margin-left: 3px;
+}
+
+.no-results {
+    text-align: center;
+    padding: 50px 30px;
+    background-color: #f9f9f9;
+    border-radius: 15px;
+    margin: 30px 0;
+    color: #555;
+    font-size: 16px;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.05);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+/* 分页样式更新 */
+.pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-top: 30px;
+    flex-wrap: wrap;
+}
+
+.page-link {
+    display: inline-block;
+    padding: 8px 15px;
+    margin: 0 5px;
+    background-color: #f5f5f5;
+    color: #333;
+    text-decoration: none;
+    border-radius: 5px;
+    transition: all 0.2s;
+}
+
+.page-link:hover {
+    background-color: #e0e0e0;
+}
+
+.page-link.active {
+    background-color: #4CAF50;
+    color: white;
+}
+
+.page-link.prev, .page-link.next {
+    background-color: #4CAF50;
+    color: white;
+}
+
+.page-link.prev:hover, .page-link.next:hover {
+    background-color: #45a049;
+}
+
+.ellipsis {
+    margin: 0 5px;
+    color: #999;
+}
+
+/* 响应式设计 */
+@media (max-width: 992px) {
+    .movie-list {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 768px) {
+    .card.movie-card .image img,
+    .card.movie-card .image .no-image {
+        height: 220px;
+    }
+    .update-section {
+        padding: 15px;
+    }
+    .search-form {
+        height: 46px;
+    }
+    
+    .search-input {
+        line-height: 46px;
+        font-size: 15px;
+        padding: 0 15px;
+    }
+    
+    .search-input::placeholder {
+        line-height: 46px;
+    }
+    
+    .search-button {
+        padding: 0 20px;
+        min-width: 60px;
+    }
+}
+
+@media (max-width: 576px) {
+    .movie-list {
+        grid-template-columns: 1fr;
+    }
+
+    .card.movie-card .image img,
+    .card.movie-card .image .no-image {
+        height: 200px;
+    }
+
+    .pagination {
+        gap: 5px;
+    }
+
+    .page-link {
+        min-width: 35px;
+        height: 35px;
+        padding: 0 8px;
+        font-size: 14px;
+    }
+    #update-button {
+        padding: 10px 20px;
+        font-size: 15px;
+    }
+    .search-container {
+        padding: 0 10px;
+    }
+    
+    .search-form {
+        height: 44px;
+    }
+    
+    .search-input {
+        line-height: 44px;
+        font-size: 14px;
+        padding: 0 12px;
+    }
+    
+    .search-input::placeholder {
+        line-height: 44px;
+    }
+    
+    .search-button {
+        padding: 0 15px;
+        min-width: 50px;
+    }
+}
+
+/* 搜索相关样式 - 添加震动动画 */
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+    20%, 40%, 60%, 80% { transform: translateX(5px); }
+}
+
+.search-form.shake {
+    animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+}
+
+/* 电影列表页面样式 */
+
+/* 排序选项样式 - 增强版 */
+.sort-options {
+    display: flex;
+    gap: 15px;
+    justify-content: center;
+    margin: 25px 0;
+    padding: 15px;
+    background-color: #f4f4f4;
+    border-radius: 10px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    position: relative;
+    z-index: 1;
+}
+
+/* .sort-options:before {
+    content: "点击排序方式";
+    position: absolute;
+    top: -10px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #6a11cb;
+    color: white;
+    padding: 3px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: bold;
+    z-index: 2;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    animation: pulse 2s infinite;
+} */
+
+@keyframes pulse {
+    0% { transform: translateX(-50%) scale(1); }
+    50% { transform: translateX(-50%) scale(1.1); }
+    100% { transform: translateX(-50%) scale(1); }
+}
+
+.sort-option {
+    padding: 12px 24px;
+    border-radius: 30px;
+    background-color: #e0e0e0;
+    color: #444;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-decoration: none;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border: 2px solid transparent;
+    position: relative;
+    overflow: hidden;
+    z-index: 1;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+.sort-option:before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(135deg, #8e2de2, #4a00e0);
+    z-index: -1;
+    transition: opacity 0.3s ease;
+    opacity: 0;
+}
+
+.sort-option:hover {
+    background-color: transparent;
+    color: white;
+    transform: translateY(-3px);
+    box-shadow: 0 8px 15px rgba(0,0,0,0.2);
+}
+
+.sort-option:hover:before {
+    opacity: 1;
+}
+
+.sort-option.active {
+    background-color: #6a11cb;
+    color: white;
+    box-shadow: 0 6px 12px rgba(106,17,203,0.3);
+    border: 2px solid #8e44ad;
+    position: relative;
+}
+
+.sort-option.active:after {
+    content: '';
+    position: absolute;
+    bottom: -10px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0;
+    height: 0;
+    border-left: 8px solid transparent;
+    border-right: 8px solid transparent;
+    border-top: 8px solid #6a11cb;
+}
+
+.sort-option i {
+    font-size: 18px;
+}
+
+/* 排序按钮动画效果 */
+.sort-option .fa-fire,
+.sort-option .fa-clock,
+.sort-option .fa-star {
+    transition: transform 0.3s ease;
+}
+
+.sort-option:hover .fa-fire {
+    transform: scale(1.2);
+    color: #ff5722;
+}
+
+.sort-option:hover .fa-clock {
+    transform: rotate(30deg);
+    color: #29b6f6;
+}
+
+.sort-option:hover .fa-star {
+    transform: rotate(72deg);
+    color: #ffc107;
+}
+
+/* 排序箭头样式 */
+.sort-arrow {
+    font-size: 14px;
+    opacity: 0.7;
+    transition: transform 0.3s ease;
+    margin-left: 3px;
+}
+
+.sort-option:hover .sort-arrow {
+    opacity: 1;
+    transform: translateY(2px);
+}
+
+/* 当前排序信息 */
+#current-sort-info {
+    padding: 8px 15px;
+    background-color: #f8f9fa;
+    border-radius: 20px;
+    display: inline-block;
+    margin: 0 auto 20px;
+    font-size: 14px;
+    color: #555;
+    border: 1px solid #e9ecef;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    text-align: center;
+    width: fit-content;
+    position: relative;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+#current-sort-info strong {
+    color: #6a11cb;
+    background-color: rgba(106,17,203,0.1);
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-weight: 500;
+}
+
+#current-sort-info i {
+    color: #6a11cb;
+    margin-right: 5px;
+}

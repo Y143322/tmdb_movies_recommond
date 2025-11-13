@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{# Define the core page title block. Child templates will override this. #}
+{% block page_title %}{% endblock %}
+
+{# Set the HTML title using the content from page_title block #}
+{% block title %}管理员 - {{ self.page_title() }}{% endblock %}
+
+{% block content %}
+<div class="admin-layout">
+    <nav class="admin-sidebar">
+        <h3>管理菜单</h3>
+        <ul>
+            <li><a href="{{ url_for('admin.dashboard') }}" class="{{ 'active' if request.endpoint == 'admin.dashboard' else '' }}"><i class="fas fa-tachometer-alt"></i> 仪表盘</a></li>
+            <li><a href="{{ url_for('admin.movies') }}" class="{{ 'active' if request.endpoint == 'admin.movies' else '' }}"><i class="fas fa-film"></i> 电影列表</a></li>
+            <li><a href="{{ url_for('admin.users') }}" class="{{ 'active' if request.endpoint == 'admin.users' else '' }}"><i class="fas fa-users"></i> 用户管理</a></li>
+            <li><a href="{{ url_for('admin.reviews') }}" class="{{ 'active' if request.endpoint == 'admin.reviews' else '' }}"><i class="fas fa-comments"></i> 评论审核</a></li>
+
+            <li><a href="{{ url_for('admin.movie_data_management') }}" class="{{ 'active' if request.endpoint == 'admin.movie_data_management' else '' }}"><i class="fas fa-database"></i> 电影数据管理</a></li>
+            <li><a href="{{ url_for('main.index') }}"><i class="fas fa-home"></i> 返回主站</a></li>
+        </ul>
+    </nav>
+    <main class="admin-content">
+        {# Display the page title defined in the child template as the main heading #}
+        <h1>{{ self.page_title() }}</h1>
+        {% block admin_content %}{% endblock %}
+    </main>
+</div>
+{% endblock %}
+
+{% block head %}
+{{ super() }}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+<style>
+    /* 统一搜索表单中的重置按钮样式 */
+    .search-actions .reset-btn {
+        background-color: #f5f5f5;
+        color: #333;
+        text-decoration: none;
+        padding: 8px 16px;
+        border-radius: 4px;
+        border: none;
+        font-size: 14px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        transition: all 0.3s;
+    }
+
+    .search-actions .reset-btn:hover {
+        background-color: #e5e5e5;
+    }
+</style>
+{% endblock %}

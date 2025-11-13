@@ -1,0 +1,497 @@
+{% extends "admin/admin_base.html" %}
+
+{% block page_title %}评论审核{% endblock %}
+
+{% block admin_content %}
+<div class="review-table-container">
+    <!-- 搜索表单 -->
+    <div class="search-container">
+        <form action="{{ url_for('admin.reviews') }}" method="GET" class="search-form">
+            <div class="search-fields">
+                <div class="search-field">
+                    <label for="movie">电影名称:</label>
+                    <input type="text" id="movie" name="movie" value="{{ request.args.get('movie', '') }}" placeholder="输入电影名称...">
+                </div>
+                <div class="search-field">
+                    <label for="user">用户名:</label>
+                    <input type="text" id="user" name="user" value="{{ request.args.get('user', '') }}" placeholder="输入用户名...">
+                </div>
+                <div class="search-field">
+                    <label for="keyword">评论关键词:</label>
+                    <input type="text" id="keyword" name="keyword" value="{{ request.args.get('keyword', '') }}" placeholder="输入关键词...">
+                </div>
+                <div class="search-field">
+                    <label for="rating">评分:</label>
+                    <select id="rating" name="rating">
+                        <option value="" {% if not request.args.get('rating') %}selected{% endif %}>全部</option>
+                        {% for i in range(1, 11) %}
+                        <option value="{{ i }}" {% if request.args.get('rating')|int == i %}selected{% endif %}>{{ i }} 分</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div class="search-actions">
+                <button type="submit" class="search-btn"><i class="fas fa-search"></i> 搜索</button>
+                <a href="{{ url_for('admin.reviews') }}" class="reset-btn"><i class="fas fa-undo"></i> 重置</a>
+            </div>
+        </form>
+    </div>
+    
+    <!-- 显示当前筛选条件 -->
+    {% if request.args.get('movie') or request.args.get('user') or request.args.get('keyword') or request.args.get('rating') %}
+    <div class="filter-summary">
+        <span>当前筛选条件:</span>
+        {% if request.args.get('movie') %}
+        <span class="filter-tag">电影: {{ request.args.get('movie') }}</span>
+        {% endif %}
+        {% if request.args.get('user') %}
+        <span class="filter-tag">用户: {{ request.args.get('user') }}</span>
+        {% endif %}
+        {% if request.args.get('keyword') %}
+        <span class="filter-tag">关键词: {{ request.args.get('keyword') }}</span>
+        {% endif %}
+        {% if request.args.get('rating') %}
+        <span class="filter-tag">评分: {{ request.args.get('rating') }} 分</span>
+        {% endif %}
+    </div>
+    {% endif %}
+    
+    <table class="review-table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>电影</th>
+                <th>用户</th>
+                <th>评分</th>
+                <th>评论内容</th>
+                <th>回复</th>
+                <th>时间</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for review in reviews %}
+            <tr class="review-row">
+                <td>{{ review.id }}</td>
+                <td class="movie-title-cell"><a href="{{ url_for('main.movie_detail', movie_id=review.movie_id) }}" target="_blank">{{ review.movie_title }}</a></td>
+                <td>{{ review.username }}</td>
+                <td>{{ review.rating }}/10</td>
+                <td>{{ review.comment if review.comment else '(无评论内容)' }}</td>
+                <td>
+                    <span class="reply-count">{{ review.replies|length }} 条回复</span>
+                    {% if review.replies|length > 0 %}
+                    <button class="toggle-replies-btn" onclick="toggleReplies({{ review.id }})">
+                        <i class="fas fa-chevron-down"></i>
+                    </button>
+                    {% endif %}
+                </td>
+                <td>{{ review.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                <td>
+                    <div class="review-actions">
+                        <form action="{{ url_for('admin.delete_review', review_id=review.id) }}" method="post" onsubmit="return confirm('确定要删除这条评论吗？');">
+                            <button type="submit" class="action-btn delete-btn"><i class="fas fa-trash-alt"></i> 删除</button>
+                        </form>
+                    </div>
+                </td>
+            </tr>
+            <!-- 回复列表行 -->
+            {% if review.replies|length > 0 %}
+            <tr class="replies-row" id="replies-{{ review.id }}" style="display: none;">
+                <td colspan="8">
+                    <div class="replies-container">
+                        {% for reply in review.replies %}
+                        <div class="reply-item">
+                            <div class="reply-header">
+                                <span class="reply-user">{{ reply.username }}</span>
+                                <span class="reply-time">{{ reply.created_at.strftime('%Y-%m-%d %H:%M') }}</span>
+                            </div>
+                            <div class="reply-content">{{ reply.content }}</div>
+                            <div class="reply-actions">
+                                <form action="{{ url_for('admin.delete_reply', reply_id=reply.id) }}" method="post" onsubmit="return confirm('确定要删除这条回复吗？');">
+                                    <button type="submit" class="action-btn delete-btn"><i class="fas fa-trash-alt"></i> 删除</button>
+                                </form>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </td>
+            </tr>
+            {% endif %}
+            {% else %}
+            <tr>
+                <td colspan="8" class="no-reviews">暂无评论</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    
+    <!-- 分页导航 -->
+    {% if total_pages > 1 %}
+    <div class="pagination">
+        <!-- 上一页 -->
+        {% if page > 1 %}
+            <a href="{{ url_for('admin.reviews', page=page-1, movie=request.args.get('movie', ''), user=request.args.get('user', ''), keyword=request.args.get('keyword', ''), rating=request.args.get('rating', '')) }}" class="page-link">&laquo; 上一页</a>
+        {% else %}
+            <span class="page-link disabled">&laquo; 上一页</span>
+        {% endif %}
+        
+        <!-- 页码 -->
+        {% set start_page = [page - 2, 1]|max %}
+        {% set end_page = [start_page + 4, total_pages]|min %}
+        {% set start_page = [end_page - 4, 1]|max %}
+        
+        {% for p in range(start_page, end_page + 1) %}
+            {% if p == page %}
+                <span class="page-link active">{{ p }}</span>
+            {% else %}
+                <a href="{{ url_for('admin.reviews', page=p, movie=request.args.get('movie', ''), user=request.args.get('user', ''), keyword=request.args.get('keyword', ''), rating=request.args.get('rating', '')) }}" class="page-link">{{ p }}</a>
+            {% endif %}
+        {% endfor %}
+        
+        <!-- 下一页 -->
+        {% if page < total_pages %}
+            <a href="{{ url_for('admin.reviews', page=page+1, movie=request.args.get('movie', ''), user=request.args.get('user', ''), keyword=request.args.get('keyword', ''), rating=request.args.get('rating', '')) }}" class="page-link">下一页 &raquo;</a>
+        {% else %}
+            <span class="page-link disabled">下一页 &raquo;</span>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+
+<style>
+    .review-table-container {
+        background-color: #fff;
+        border-radius: 8px;
+        padding: 20px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        overflow-x: auto;
+    }
+    
+    /* 电影标题单元格样式 */
+    .movie-title-cell {
+        min-width: 120px;
+        max-width: 200px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    /* 搜索表单样式 */
+    .search-container {
+        margin-bottom: 20px;
+        padding: 15px;
+        background-color: #f7f9fc;
+        border-radius: 6px;
+        border: 1px solid #e1e4e8;
+    }
+    
+    .search-form {
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+    }
+    
+    .search-fields {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 15px;
+    }
+    
+    .search-field {
+        flex: 1;
+        min-width: 200px;
+    }
+    
+    .search-field label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: 500;
+        color: #555;
+    }
+    
+    .search-field input, .search-field select {
+        width: 100%;
+        padding: 8px 12px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 14px;
+    }
+    
+    .search-field input:focus, .search-field select:focus {
+        border-color: #3498db;
+        box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+        outline: none;
+    }
+    
+    .search-actions {
+        display: flex;
+        gap: 10px;
+        justify-content: flex-end;
+    }
+    
+    .search-btn, .reset-btn {
+        padding: 8px 16px;
+        border-radius: 4px;
+        border: none;
+        font-size: 14px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        transition: all 0.3s;
+    }
+    
+    .search-btn {
+        background-color: #3498db;
+        color: white;
+    }
+    
+    .search-btn:hover {
+        background-color: #2980b9;
+    }
+    
+    .reset-btn {
+        background-color: #f5f5f5;
+        color: #333;
+        text-decoration: none;
+    }
+    
+    .reset-btn:hover {
+        background-color: #e5e5e5;
+    }
+    
+    /* 筛选条件标签样式 */
+    .filter-summary {
+        margin-bottom: 15px;
+        padding: 10px 15px;
+        background-color: #f0f7ff;
+        border-radius: 4px;
+        font-size: 14px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+    }
+    
+    .filter-tag {
+        background-color: #e1f0ff;
+        color: #3498db;
+        padding: 5px 10px;
+        border-radius: 15px;
+        font-weight: 500;
+    }
+    
+    .review-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    
+    .review-table th, .review-table td {
+        padding: 12px 15px;
+        text-align: left;
+        border-bottom: 1px solid #ddd;
+    }
+    
+    .review-table th {
+        background-color: #f5f5f5;
+        font-weight: bold;
+        color: #333;
+    }
+    
+    .review-table tr:hover {
+        background-color: #f9f9f9;
+    }
+    
+    /* 电影标题链接样式 */
+    .review-table td a {
+        color: #3498db;
+        text-decoration: none;
+        font-weight: 500;
+        transition: color 0.2s;
+    }
+    
+    .review-table td a:hover {
+        color: #1a73e8;
+        text-decoration: underline;
+    }
+    
+    .review-table td a:visited {
+        color: #3498db; /* 保持与未访问时相同的颜色 */
+    }
+    
+    .review-actions {
+        display: flex;
+        gap: 8px;
+        justify-content: flex-start;
+        align-items: center;
+    }
+    
+    .review-actions form {
+        margin: 0;
+        padding: 0;
+        display: inline-flex;
+    }
+    
+    .action-btn {
+        padding: 8px 15px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: background-color 0.3s;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 5px;
+        font-size: 14px;
+        min-width: 80px;
+        height: 36px;
+        box-sizing: border-box;
+        white-space: nowrap;
+    }
+    
+    .delete-btn {
+        background-color: #e74c3c;
+        color: white;
+    }
+    
+    .delete-btn:hover {
+        background-color: #c0392b;
+    }
+    
+    .no-reviews {
+        text-align: center;
+        color: #999;
+        padding: 20px 0;
+    }
+    
+    /* 分页样式 */
+    .pagination {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        margin: 20px 0;
+    }
+
+    .page-link {
+        display: inline-block;
+        padding: 8px 16px;
+        margin: 0 5px;
+        border-radius: 4px;
+        background-color: #fff;
+        color: #333;
+        text-decoration: none;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        transition: all 0.2s;
+    }
+
+    .page-link:hover {
+        background-color: #f5f5f5;
+    }
+
+    .page-link.active {
+        background-color: #3498db;
+        color: white;
+    }
+
+    .page-link.disabled {
+        background-color: #eee;
+        color: #999;
+        cursor: not-allowed;
+    }
+    
+    /* 回复相关样式 */
+    .reply-count {
+        color: #666;
+        font-size: 0.9em;
+    }
+    
+    .toggle-replies-btn {
+        background: none;
+        border: none;
+        color: #3498db;
+        cursor: pointer;
+        padding: 2px 5px;
+        margin-left: 5px;
+    }
+    
+    .toggle-replies-btn:hover {
+        color: #2980b9;
+    }
+    
+    .replies-container {
+        padding: 10px;
+        background-color: #f9f9f9;
+        border-radius: 5px;
+    }
+    
+    .reply-item {
+        padding: 10px;
+        border-bottom: 1px solid #eee;
+        margin-bottom: 10px;
+    }
+    
+    .reply-item:last-child {
+        border-bottom: none;
+        margin-bottom: 0;
+    }
+    
+    .reply-header {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 8px;
+    }
+    
+    .reply-user {
+        font-weight: bold;
+        color: #444;
+    }
+    
+    .reply-time {
+        color: #888;
+        font-size: 0.9em;
+    }
+    
+    .reply-content {
+        line-height: 1.5;
+        margin-bottom: 10px;
+    }
+    
+    .reply-actions {
+        margin-top: 8px;
+    }
+
+    @media (max-width: 768px) {
+        .search-fields {
+            flex-direction: column;
+        }
+        
+        .search-field {
+            min-width: 100%;
+        }
+        
+        .search-actions {
+            justify-content: stretch;
+        }
+        
+        .search-btn, .reset-btn {
+            flex: 1;
+            justify-content: center;
+        }
+    }
+</style>
+
+<script>
+    function toggleReplies(reviewId) {
+        const repliesRow = document.getElementById(`replies-${reviewId}`);
+        const toggleBtn = repliesRow.previousElementSibling.querySelector('.toggle-replies-btn i');
+        
+        if (repliesRow.style.display === 'none') {
+            repliesRow.style.display = 'table-row';
+            toggleBtn.className = 'fas fa-chevron-up';
+        } else {
+            repliesRow.style.display = 'none';
+            toggleBtn.className = 'fas fa-chevron-down';
+        }
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,615 @@
+{% extends "admin/admin_base.html" %}
+
+{% block page_title %}用户管理{% endblock %}
+
+{% block admin_content %}
+<div class="users-admin-container">
+    <div class="header">
+        <h2>用户管理</h2>
+    </div>
+
+    <!-- 搜索表单 -->
+    <div class="search-container">
+        <form action="{{ url_for('admin.users') }}" method="GET" class="search-form">
+            <div class="search-fields">
+                <div class="search-field">
+                    <label for="username">用户名:</label>
+                    <input type="text" id="username" name="username" value="{{ request.args.get('username', '') }}" placeholder="输入用户名...">
+                </div>
+                <div class="search-field">
+                    <label for="email">邮箱:</label>
+                    <input type="text" id="email" name="email" value="{{ request.args.get('email', '') }}" placeholder="输入邮箱...">
+                </div>
+                <div class="search-field">
+                    <label for="user_type">用户类型:</label>
+                    <select id="user_type" name="user_type">
+                        <option value="" {% if not request.args.get('user_type') %}selected{% endif %}>全部</option>
+                        <option value="admin" {% if request.args.get('user_type') == 'admin' %}selected{% endif %}>管理员</option>
+                        <option value="normal" {% if request.args.get('user_type') == 'normal' %}selected{% endif %}>普通用户</option>
+                    </select>
+                </div>
+                <div class="search-field">
+                    <label for="status">状态:</label>
+                    <select id="status" name="status">
+                        <option value="" {% if not request.args.get('status') %}selected{% endif %}>全部</option>
+                        <option value="active" {% if request.args.get('status') == 'active' %}selected{% endif %}>正常</option>
+                        <option value="banned" {% if request.args.get('status') == 'banned' %}selected{% endif %}>已禁言</option>
+                    </select>
+                </div>
+            </div>
+            <div class="search-actions">
+                <button type="submit" class="search-btn"><i class="fas fa-search"></i> 搜索</button>
+                <a href="{{ url_for('admin.users') }}" class="reset-btn"><i class="fas fa-undo"></i> 重置</a>
+            </div>
+        </form>
+    </div>
+    
+    <!-- 显示当前筛选条件 -->
+    {% if request.args.get('username') or request.args.get('email') or request.args.get('user_type') or request.args.get('status') %}
+    <div class="filter-summary">
+        <span>当前筛选条件:</span>
+        {% if request.args.get('username') %}
+        <span class="filter-tag">用户名: {{ request.args.get('username') }}</span>
+        {% endif %}
+        {% if request.args.get('email') %}
+        <span class="filter-tag">邮箱: {{ request.args.get('email') }}</span>
+        {% endif %}
+        {% if request.args.get('user_type') %}
+        <span class="filter-tag">类型: {{ '管理员' if request.args.get('user_type') == 'admin' else '普通用户' }}</span>
+        {% endif %}
+        {% if request.args.get('status') %}
+        <span class="filter-tag">状态: {{ '已禁言' if request.args.get('status') == 'banned' else '正常' }}</span>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <div class="users-table-container">
+        <table class="users-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>用户名</th>
+                    <th>邮箱</th>
+                    <th>类型</th>
+                    <th>密码状态</th>
+                    <th>禁言状态</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user in users %}
+                <tr class="user-row" data-user-id="{{ user.id }}">
+                    <td>{{ user.id }}</td>
+                    <td class="user-name">{{ user.username }}</td>
+                    <td>{{ user.email or '未设置' }}</td>
+                    <td class="type-cell">{{ '管理员' if user.is_admin else '普通用户' }}</td>
+                    <td class="password-status-cell">{{ '需要重置' if user.reset_password else '正常' }}</td>
+                    <td class="mute-status-cell">
+                        {% if not user.is_admin %}
+                            {% if user.status == 'banned' %}
+                                <span class="status-badge muted">已禁言</span>
+                                <span class="mute-expires">
+                                    {% if user.mute_expires_at %}
+                                        到期时间: {{ user.mute_expires_at.strftime('%Y-%m-%d %H:%M:%S') if user.mute_expires_at else '永久' }}
+                                    {% else %}
+                                        永久
+                                    {% endif %}
+                                </span>
+                            {% else %}
+                                <span>无</span>
+                            {% endif %}
+                        {% else %}
+                            <span class="status-badge admin">管理员</span>
+                        {% endif %}
+                    </td>
+                    <td class="actions">
+                        {% if not user.is_admin %}
+                            <button class="mute-btn" onclick="toggleMuteDialog({{ user.id }}, '{{ user.username }}')" title="禁言管理">
+                                <i class="fas fa-comment-slash"></i> 禁言管理
+                            </button>
+                        {% endif %}
+                        <form action="{{ url_for('admin.reset_user_password', user_id=user.id, user_type='admin' if user.is_admin else 'normal') }}" method="post" class="action-form" onsubmit="return confirm('确定要重置 {{ user.username }} 的密码吗？');">
+                            <button type="submit" class="password-reset-btn" title="重置密码">
+                                <i class="fas fa-key"></i> 重置密码
+                            </button>
+                        </form>
+                        <form action="{{ url_for('admin.delete_user', user_id=user.id, user_type='admin' if user.is_admin else 'normal') }}" method="post" class="action-form" onsubmit="return confirm('确定要删除用户 {{ user.username }} 吗？此操作不可恢复。');">
+                            <button type="submit" class="delete-btn" title="删除用户">
+                                <i class="fas fa-trash"></i> 删除
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- 分页导航 -->
+    {% if total_pages > 1 %}
+    <div class="pagination">
+        <!-- 上一页 -->
+        {% if page > 1 %}
+            <a href="{{ url_for('admin.users', page=page-1, username=request.args.get('username', ''), email=request.args.get('email', ''), user_type=request.args.get('user_type', ''), status=request.args.get('status', '')) }}" class="page-link">&laquo; 上一页</a>
+        {% else %}
+            <span class="page-link disabled">&laquo; 上一页</span>
+        {% endif %}
+        
+        <!-- 页码 -->
+        {% set start_page = [page - 2, 1]|max %}
+        {% set end_page = [start_page + 4, total_pages]|min %}
+        {% set start_page = [end_page - 4, 1]|max %}
+        
+        {% for p in range(start_page, end_page + 1) %}
+            {% if p == page %}
+                <span class="page-link active">{{ p }}</span>
+            {% else %}
+                <a href="{{ url_for('admin.users', page=p, username=request.args.get('username', ''), email=request.args.get('email', ''), user_type=request.args.get('user_type', ''), status=request.args.get('status', '')) }}" class="page-link">{{ p }}</a>
+            {% endif %}
+        {% endfor %}
+        
+        <!-- 下一页 -->
+        {% if page < total_pages %}
+            <a href="{{ url_for('admin.users', page=page+1, username=request.args.get('username', ''), email=request.args.get('email', ''), user_type=request.args.get('user_type', ''), status=request.args.get('status', '')) }}" class="page-link">下一页 &raquo;</a>
+        {% else %}
+            <span class="page-link disabled">下一页 &raquo;</span>
+        {% endif %}
+    </div>
+    {% endif %}
+    
+    <!-- 禁言对话框 -->
+    <div id="mute-dialog" class="dialog">
+        <div class="dialog-content">
+            <span class="close-dialog" onclick="closeMuteDialog()">&times;</span>
+            <h3>禁言用户 <span id="mute-username"></span></h3>
+            <div id="current-mute-status"></div>
+            <form id="mute-form" action="" method="post">
+                <div class="form-group">
+                    <label for="duration">禁言时长（小时）:</label>
+                    <input type="number" id="duration" name="duration" min="0" value="24">
+                    <p class="help-text">设置为0可解除禁言</p>
+                </div>
+                <div class="dialog-buttons">
+                    <button type="button" onclick="closeMuteDialog()" class="cancel-btn">取消</button>
+                    <button type="submit" class="submit-btn">确定</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<style>
+    .users-admin-container {
+        width: 100%;
+        background-color: #fff;
+        border-radius: 8px;
+        padding: 20px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    }
+
+    .header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+    }
+
+    .header h2 {
+        margin: 0;
+        font-size: 24px;
+        color: #333;
+    }
+
+    .search-container {
+        margin-bottom: 20px;
+        padding: 15px;
+        background-color: #f7f9fc;
+        border-radius: 6px;
+        border: 1px solid #e1e4e8;
+    }
+
+    .search-form {
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+        width: 100%;
+    }
+
+    .search-fields {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 15px;
+    }
+
+    .search-field {
+        flex: 1;
+        min-width: 200px;
+    }
+    
+    .search-field label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: 500;
+        color: #555;
+    }
+    
+    .search-field input, .search-field select {
+        width: 100%;
+        padding: 8px 12px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 14px;
+    }
+    
+    .search-field input:focus, .search-field select:focus {
+        border-color: #3498db;
+        box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+        outline: none;
+    }
+
+    .search-actions {
+        display: flex;
+        gap: 10px;
+        justify-content: flex-end;
+    }
+
+    .search-btn, .reset-btn {
+        padding: 8px 16px;
+        border-radius: 4px;
+        border: none;
+        font-size: 14px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        transition: all 0.3s;
+    }
+
+    .search-btn {
+        background-color: #3498db;
+        color: white;
+    }
+
+    .search-btn:hover {
+        background-color: #2980b9;
+    }
+
+    .reset-btn {
+        background-color: #f5f5f5;
+        color: #333;
+        text-decoration: none;
+    }
+
+    .reset-btn:hover {
+        background-color: #e5e5e5;
+    }
+
+    .filter-summary {
+        margin-bottom: 15px;
+        padding: 10px 15px;
+        background-color: #f0f7ff;
+        border-radius: 4px;
+        font-size: 14px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+    }
+
+    .filter-tag {
+        background-color: #e1f0ff;
+        color: #3498db;
+        padding: 5px 10px;
+        border-radius: 15px;
+        font-weight: 500;
+    }
+
+    .users-table-container {
+        overflow-x: auto;
+    }
+
+    .users-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .users-table th, .users-table td {
+        padding: 12px 15px;
+        text-align: left;
+        border-bottom: 1px solid #ddd;
+    }
+
+    .users-table th {
+        background-color: #f5f5f5;
+        font-weight: bold;
+        color: #333;
+        text-align: center;
+    }
+
+    .users-table tr:hover {
+        background-color: #f9f9f9;
+    }
+
+    .user-name {
+        font-weight: bold;
+    }
+    
+    /* 新增状态单元格样式 */
+    .type-cell, .password-status-cell, .mute-status-cell {
+        text-align: center;
+    }
+    
+    .type-cell {
+        white-space: nowrap;
+    }
+
+    .actions {
+        white-space: nowrap;
+    }
+
+    .action-form {
+        display: inline-block;
+        margin-right: 5px;
+    }
+
+    .delete-btn, .password-reset-btn {
+        padding: 6px 12px;
+        border: none;
+        border-radius: 4px;
+        color: white;
+        font-size: 13px;
+        cursor: pointer;
+        transition: background-color 0.3s;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+    }
+
+    .password-reset-btn {
+        background-color: #ff9800;
+    }
+
+    .password-reset-btn:hover {
+        background-color: #f57c00;
+    }
+
+    .delete-btn {
+        background-color: #e74c3c;
+    }
+
+    .delete-btn:hover {
+        background-color: #c0392b;
+    }
+
+    /* 分页样式 */
+    .pagination {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        margin: 20px 0;
+    }
+
+    .page-link {
+        display: inline-block;
+        padding: 8px 16px;
+        margin: 0 5px;
+        border-radius: 4px;
+        background-color: #fff;
+        color: #333;
+        text-decoration: none;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        transition: all 0.2s;
+    }
+
+    .page-link:hover {
+        background-color: #f5f5f5;
+    }
+
+    .page-link.active {
+        background-color: #4CAF50;
+        color: white;
+    }
+
+    .page-link.disabled {
+        background-color: #eee;
+        color: #999;
+        cursor: not-allowed;
+    }
+
+    .mute-btn {
+        padding: 6px 12px;
+        border: none;
+        border-radius: 4px;
+        color: white;
+        font-size: 13px;
+        cursor: pointer;
+        background-color: #3498db;
+        margin-right: 5px;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+    }
+    
+    .mute-btn:hover {
+        background-color: #2980b9;
+    }
+    
+    .status-badge {
+        padding: 3px 8px;
+        border-radius: 12px;
+        font-size: 12px;
+        color: white;
+        display: inline-block;
+    }
+    
+    .status-badge.normal {
+        background-color: #2ecc71;
+    }
+    
+    .status-badge.muted {
+        background-color: #e74c3c;
+    }
+    
+    .status-badge.admin {
+        background-color: #9b59b6;
+    }
+    
+    .mute-expires {
+        display: block;
+        font-size: 12px;
+        color: #7f8c8d;
+        margin-top: 4px;
+    }
+    
+    /* 对话框样式 */
+    .dialog {
+        display: none;
+        position: fixed;
+        z-index: 1000;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0,0,0,0.5);
+    }
+    
+    .dialog-content {
+        background-color: #fff;
+        margin: 10% auto;
+        padding: 20px;
+        border-radius: 8px;
+        width: 400px;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        position: relative;
+    }
+    
+    .close-dialog {
+        position: absolute;
+        right: 15px;
+        top: 10px;
+        font-size: 24px;
+        font-weight: bold;
+        color: #aaa;
+        cursor: pointer;
+    }
+    
+    .close-dialog:hover {
+        color: #555;
+    }
+    
+    .form-group {
+        margin-bottom: 20px;
+    }
+    
+    .form-group label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: bold;
+    }
+    
+    .form-group input {
+        width: 100%;
+        padding: 8px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        box-sizing: border-box;
+    }
+    
+    .help-text {
+        color: #777;
+        font-size: 12px;
+        margin-top: 5px;
+    }
+    
+    #current-mute-status {
+        margin: 15px 0;
+        padding: 10px;
+        background-color: #f8f9fa;
+        border-radius: 4px;
+        border-left: 4px solid #3498db;
+    }
+    
+    .dialog-buttons {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+    }
+    
+    .cancel-btn {
+        padding: 8px 15px;
+        border: 1px solid #ddd;
+        background-color: #f8f9fa;
+        border-radius: 4px;
+        cursor: pointer;
+    }
+    
+    .submit-btn {
+        padding: 8px 15px;
+        border: none;
+        background-color: #3498db;
+        color: white;
+        border-radius: 4px;
+        cursor: pointer;
+    }
+    
+    .submit-btn:hover {
+        background-color: #2980b9;
+    }
+</style>
+
+<script>
+    // 添加事件监听，当按下Enter键时提交搜索表单
+    document.getElementById('user-search').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            document.getElementById('search-form').submit();
+        }
+    });
+
+    // 禁言对话框函数
+    function toggleMuteDialog(userId, username) {
+        document.getElementById('mute-username').textContent = username;
+        document.getElementById('mute-form').action = "{{ url_for('admin.mute_user', user_id=0) }}".replace('0', userId);
+        
+        // 获取当前禁言状态
+        fetch("{{ url_for('admin.check_mute_status', user_id=0) }}".replace('0', userId))
+            .then(response => response.json())
+            .then(data => {
+                const statusDiv = document.getElementById('current-mute-status');
+                if (data.is_muted) {
+                    statusDiv.innerHTML = `
+                        <div class="status-info">
+                            <strong>当前状态:</strong> <span class="status-badge muted">已禁言</span><br>
+                            <strong>到期时间:</strong> ${data.mute_expires_at || '永久'}<br>
+                            ${data.remaining_time ? `<strong>剩余时间:</strong> ${data.remaining_time}` : ''}
+                        </div>
+                    `;
+                } else {
+                    statusDiv.innerHTML = `
+                        <div class="status-info">
+                            <strong>当前状态:</strong> <span>无</span><br>
+                            <strong>可以正常发表评论</strong>
+                        </div>
+                    `;
+                }
+                
+                document.getElementById('mute-dialog').style.display = 'block';
+            })
+            .catch(error => {
+                console.error('获取禁言状态失败:', error);
+                alert('获取禁言状态失败，请重试');
+            });
+    }
+    
+    function closeMuteDialog() {
+        document.getElementById('mute-dialog').style.display = 'none';
+    }
+    
+    // 点击对话框外部关闭对话框
+    window.onclick = function(event) {
+        const dialog = document.getElementById('mute-dialog');
+        if (event.target === dialog) {
+            closeMuteDialog();
+        }
+    }
+</script>
+{% endblock %}

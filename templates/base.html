@@ -1,0 +1,98 @@
+﻿<!-- base.html: -->
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}电影网站{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="icon" href="{{ url_for('static', filename='img/favicon.ico') }}" type="image/x-icon">
+    <link rel="shortcut icon" href="{{ url_for('static', filename='img/favicon.ico') }}" type="image/x-icon">
+    {% block head %}{% endblock %}
+</head>
+<body>
+    <div class="header">
+        <div class="nav-container">
+            <h1><a href="{{ url_for('main.index') }}">电影榜单</a></h1>
+            <nav class="main-nav">
+                <a href="{{ url_for('main.index') }}">首页</a>
+                <a href="{{ url_for('movies.show_movies_root', page=1) }}">电影列表</a>
+                {% if current_user.is_authenticated %}
+                    {% if not current_user.is_admin %}
+                    <a href="{{ url_for('main.watch_history') }}">观看历史</a>
+                    <a href="{{ url_for('main.user_ratings') }}">我的评分</a>
+                    {% endif %}
+                {% else %}
+                <a href="#" class="login-required" data-redirect="{{ url_for('main.watch_history') }}">观看历史</a>
+                <a href="#" class="login-required" data-redirect="{{ url_for('main.user_ratings') }}">我的评分</a>
+                {% endif %}
+            </nav>
+        </div>
+        <div class="user-nav">
+            {% if current_user.is_authenticated %}
+            <div class="user-info">
+                <a href="{{ url_for('auth.profile') }}">
+                    {{ current_user.username }}
+                    {% if current_user.is_admin %}
+                    <span class="admin-badge">管理员</span>
+                    {% endif %}
+                </a>
+            </div>
+            {% if current_user.is_admin %}
+                <a href="{{ url_for('admin.dashboard') }}" class="admin-link">管理后台</a>
+            {% endif %}
+            <a href="{{ url_for('auth.logout') }}" class="logout-btn">退出</a>
+            {% else %}
+            <a href="#" class="user-center-btn" id="userCenterBtn">个人中心</a>
+            <a href="{{ url_for('auth.login') }}" class="login-btn">登录</a>
+            <a href="{{ url_for('auth.register') }}" class="register-btn">注册</a>
+            {% endif %}
+        </div>
+    </div>
+
+    {% block flash_messages %}
+    <div id="flash-message" style="display: none;">
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                {{ messages[0] }}
+            {% endif %}
+        {% endwith %}
+    </div>
+    {% endblock %}
+
+    <div class="container">
+        {% block content %}{% endblock %}
+    </div>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/image-loader.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/progress-bar-init.js') }}"></script>
+    
+    <!-- 添加个人中心点击处理脚本 -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // 处理个人中心按钮点击
+            const userCenterBtn = document.getElementById('userCenterBtn');
+            if (userCenterBtn) {
+                userCenterBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    alert('请先登录');
+                    // 移除自动跳转
+                });
+            }
+            
+            // 处理需要登录的导航链接点击
+            const loginRequiredLinks = document.querySelectorAll('.login-required');
+            loginRequiredLinks.forEach(link => {
+                link.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    alert('请先登录');
+                    // 移除自动跳转
+                });
+            });
+        });
+    </script>
+    
+    {% block scripts %}{% endblock %}
+</body>
+</html>

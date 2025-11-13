@@ -1,0 +1,311 @@
+﻿{% extends 'base.html' %}
+
+{% block title %}
+电影评分推荐系统
+{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/index.css') }}">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+<style>
+/* 增加内联样式表以减少模板中的内联样式 */
+.confidence-fill {
+    height: 100%;
+    background-color: #3949ab;
+    border-radius: 2px;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="hero-section">
+        <h1>个性化电影评分推荐系统</h1>
+        <p>欢迎使用基于协同过滤的电影评分推荐系统</p>
+        <a href="{{ url_for('movies.show_movies_root', page=1) }}" class="browse-btn">浏览电影</a>
+    </div>
+
+    {% if current_user.is_authenticated %}
+    <div class="recommendations-section">
+        <div class="recommendation-header">
+            <h2>为您推荐</h2>
+            <div class="recommendation-controls">
+                <div id="refresh-notification" class="refresh-notification" style="display: none;">
+                    <i class="fas fa-check-circle"></i> 已为您推荐新内容
+                </div>
+                <button id="refresh-recommendations" class="refresh-btn">
+                    <i class="fas fa-sync-alt"></i> 换一换
+                </button>
+            </div>
+        </div>
+        <div class="recommendation-explanation">
+            <i class="fas fa-lightbulb"></i> 
+            <span>这些电影是基于您的观影历史和评分习惯精选的，推荐度越高表示越符合您的口味</span>
+        </div>
+
+        {% if recommendations %}
+        <div id="movie-recommendations-container" class="movie-recommendations">
+            {% for movie in recommendations %}
+            <div class="movie-card">
+                <a href="{{ url_for('main.movie_detail', movie_id=movie.id) }}" class="movie-link">
+                    <div class="movie-poster">
+                        {% if movie.image %}
+                        <img src="{{ movie.image }}" alt="{{ movie.title }}">
+                        {% else %}
+                        <div class="no-poster">无海报</div>
+                        {% endif %}
+                        <div class="movie-score">
+                            <i class="fas fa-star"></i>
+                            {{ "%.1f"|format(movie.score|float if movie.score else 0) }}
+                        </div>
+                    </div>
+                    <h3 class="movie-title">{{ movie.title }}</h3>
+                    <div class="recommendation-info">
+                        <div class="confidence-bar">
+                            <div class="confidence-fill" style="width: {{ (movie.score|float / 10) * 100 }}%"></div>
+                        </div>
+                        <span class="confidence-text">推荐度 {{ "%.0f"|format((movie.score|float / 10) * 100) }}%</span>
+                        <div class="recommendation-reason">
+                            {% if movie.score|float > 8.5 %}
+                            <span><i class="fas fa-thumbs-up"></i> 非常符合您的口味</span>
+                            {% elif movie.score|float > 7.5 %}
+                            <span><i class="fas fa-heart"></i> 您可能会喜欢</span>
+                            {% elif movie.score|float > 6.5 %}
+                            <span><i class="fas fa-check"></i> 值得一看</span>
+                            {% else %}
+                            <span><i class="fas fa-lightbulb"></i> 扩展您的观影视野</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </a>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="no-recommendations">
+            <p>开始对电影评分，我们将为您提供个性化推荐！</p>
+            <a href="{{ url_for('movies.show_movies_root', page=1) }}" class="browse-btn btn-small">去评分</a>
+        </div>
+        {% endif %}
+    </div>
+    {% else %}
+    <div class="random-movies-section">
+        <div class="recommendation-header">
+            <h2>随便看看</h2>
+            <div class="recommendation-controls">
+                <div id="refresh-notification" class="refresh-notification" style="display: none;">
+                    <i class="fas fa-check-circle"></i> 已为您推荐新内容
+                </div>
+                <button id="refresh-recommendations" class="refresh-btn">
+                    <i class="fas fa-sync-alt"></i> 换一换
+                </button>
+            </div>
+        </div>
+        {% if random_movies %}
+        <div id="movie-recommendations-container" class="movie-recommendations">
+            {% for movie in random_movies %}
+            <div class="movie-card">
+                <a href="{{ url_for('main.movie_detail', movie_id=movie.id) }}" class="movie-link">
+                    <div class="movie-poster">
+                        {% if movie.image %}
+                        <img src="{{ movie.image }}" alt="{{ movie.title }}">
+                        {% else %}
+                        <div class="no-poster">无海报</div>
+                        {% endif %}
+                        <div class="movie-score">
+                            <i class="fas fa-star"></i>
+                            {{ "%.1f"|format(movie.score|float if movie.score else 0.0) }}
+                        </div>
+                    </div>
+                    <h3 class="movie-title">{{ movie.title }}</h3>
+                </a>
+            </div>
+            {% endfor %}
+        </div>
+        <div class="auth-prompt-inline">
+            <p>想看到更精准的推荐？<a href="{{ url_for('auth.login') }}">登录</a>或<a href="{{ url_for('auth.register') }}">注册</a></p>
+        </div>
+        {% else %}
+        <div class="no-recommendations">
+            <p>数据库中暂时没有电影，请稍后重试或联系管理员。</p>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <div class="features">
+        <div class="feature">
+            <div class="feature-icon">
+                <i class="fas fa-film"></i>
+            </div>
+            <h3>海量电影</h3>
+            <p>收录数千部电影信息，类型丰富多样</p>
+        </div>
+
+        <div class="feature">
+            <div class="feature-icon">
+                <i class="fas fa-star"></i>
+            </div>
+            <h3>个性化推荐</h3>
+            <p>基于您的观影历史和评分，智能推荐您可能喜欢的电影</p>
+        </div>
+
+        <div class="feature">
+            <div class="feature-icon">
+                <i class="fas fa-users"></i>
+            </div>
+            <h3>社区评分</h3>
+            <p>查看其他用户的真实评价，分享您的观影体验</p>
+        </div>
+    </div>
+</div>
+
+<script>
+/* 这里使用IIFE包装以避免全局作用域污染 */
+(function() {
+    document.addEventListener('DOMContentLoaded', function() {
+        const refreshBtn = document.getElementById('refresh-recommendations');
+        const notification = document.getElementById('refresh-notification');
+        const moviesContainer = document.getElementById('movie-recommendations-container');
+        
+        if (refreshBtn) {
+            refreshBtn.addEventListener('click', function() {
+                // 显示加载状态
+                refreshBtn.disabled = true;
+                refreshBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 加载中...';
+                
+                // 获取当前显示的电影ID列表
+                const currentMovieIds = [];
+                const movieCards = document.querySelectorAll('#movie-recommendations-container .movie-card');
+                
+                movieCards.forEach(card => {
+                    const movieLink = card.querySelector('.movie-link');
+                    if (movieLink) {
+                        const href = movieLink.getAttribute('href');
+                        const movieId = href.split('/').pop();
+                        if (movieId && !isNaN(movieId)) {
+                            currentMovieIds.push(parseInt(movieId));
+                        }
+                    }
+                });
+                
+                console.log('当前显示的电影ID:', currentMovieIds);
+                
+                // 发送AJAX请求获取新的推荐
+                fetch('/refresh_recommendations', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: JSON.stringify({
+                        current_movies: currentMovieIds
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // 显示刷新通知
+                        if (notification) {
+                            notification.style.display = 'block';
+                            
+                            // 3秒后自动隐藏通知
+                            setTimeout(function() {
+                                notification.style.opacity = '0';
+                                setTimeout(function() {
+                                    notification.style.display = 'none';
+                                    notification.style.opacity = '1';
+                                }, 500);
+                            }, 3000);
+                        }
+                        
+                        // 更新电影推荐
+                        if (data.movies && moviesContainer) {
+                            // 创建HTML内容
+                            let moviesHTML = '';
+                            
+                            data.movies.forEach(movie => {
+                                const confidencePercent = Math.round((movie.score / 10) * 100);
+                                let recommendReasonHTML = '';
+                                
+                                if (movie.score > 8.5) {
+                                    recommendReasonHTML = '<span><i class="fas fa-thumbs-up"></i> 非常符合您的口味</span>';
+                                } else if (movie.score > 7.5) {
+                                    recommendReasonHTML = '<span><i class="fas fa-heart"></i> 您可能会喜欢</span>';
+                                } else if (movie.score > 6.5) {
+                                    recommendReasonHTML = '<span><i class="fas fa-check"></i> 值得一看</span>';
+                                } else {
+                                    recommendReasonHTML = '<span><i class="fas fa-lightbulb"></i> 扩展您的观影视野</span>';
+                                }
+                                
+                                let posterHTML = '';
+                                if (movie.image) {
+                                    posterHTML = '<img src="' + movie.image + '" alt="' + movie.title + '">';
+                                } else {
+                                    posterHTML = '<div class="no-poster">无海报</div>';
+                                }
+                                
+                                // 根据是否登录显示不同的卡片内容
+                                let cardContent = '';
+                                {% if current_user.is_authenticated %}
+                                    cardContent = '<div class="recommendation-info">' +
+                                        '<div class="recommendation-confidence">' +
+                                        '<div class="confidence-bar">' +
+                                        '<div class="confidence-fill" style="width: ' + confidencePercent + '%"></div>' +
+                                        '</div>' +
+                                        '<span class="confidence-text">推荐度 ' + confidencePercent + '%</span>' +
+                                        '</div>' +
+                                        '<div class="recommendation-reason">' +
+                                        recommendReasonHTML +
+                                        '</div>' +
+                                        '</div>';
+                                {% endif %}
+                                
+                                moviesHTML += '<div class="movie-card">' +
+                                    '<a href="/movie/' + movie.id + '" class="movie-link">' +
+                                    '<div class="movie-poster">' +
+                                    posterHTML +
+                                    '<div class="movie-score">' +
+                                    '<i class="fas fa-star"></i> ' +
+                                    movie.score.toFixed(1) +
+                                    '</div>' +
+                                    '</div>' +
+                                    '<h3 class="movie-title">' + movie.title + '</h3>' +
+                                    cardContent +
+                                    '</a>' +
+                                    '</div>';
+                            });
+                            
+                            // 添加淡入淡出效果
+                            moviesContainer.style.opacity = '0';
+                            
+                            setTimeout(function() {
+                                // 更新容器内容
+                                moviesContainer.innerHTML = moviesHTML;
+                                
+                                // 显示新内容
+                                moviesContainer.style.opacity = '1';
+                            }, 300);
+                        }
+                    } else {
+                        console.error('获取推荐失败:', data.message);
+                        alert('获取推荐失败，请稍后再试');
+                    }
+                    
+                    // 恢复按钮状态
+                    refreshBtn.disabled = false;
+                    refreshBtn.innerHTML = '<i class="fas fa-sync-alt"></i> 换一换';
+                })
+                .catch(function(error) {
+                    console.error('Error:', error);
+                    alert('发生错误，请稍后再试');
+                    // 恢复按钮状态
+                    refreshBtn.disabled = false;
+                    refreshBtn.innerHTML = '<i class="fas fa-sync-alt"></i> 换一换';
+                });
+            });
+        }
+    });
+})();
+</script>
+{% endblock %}
