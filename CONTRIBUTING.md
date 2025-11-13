@@ -2,6 +2,8 @@
 
 感谢您对电影推荐系统项目的关注！我们欢迎所有形式的贡献。
 
+> **📝 说明**: 本项目的部分代码和文档使用了 AI (GitHub Copilot) 进行辅助生成和优化。我们鼓励贡献者在适当的情况下使用 AI 工具提高开发效率，但请确保理解并审查 AI 生成的代码。
+
 ## 📋 目录
 
 - [行为准则](#行为准则)
@@ -40,7 +42,7 @@
 
 如果您发现了 Bug，请：
 
-1. **检查** [Issues](https://github.com/yourusername/movies-recommend/issues) 是否已有人报告
+1. **检查** [Issues](https://github.com/Y143322/tmdb_movies_recommond/issues) 是否已有人报告
 2. 如果没有，创建新 Issue，包含：
    - 清晰的标题
    - Bug 的详细描述
@@ -422,13 +424,12 @@ doc/
 
 ### 问题讨论
 
-- 💬 [GitHub Discussions](https://github.com/yourusername/movies-recommend/discussions)
-- 🐛 [GitHub Issues](https://github.com/yourusername/movies-recommend/issues)
+- 💬 [GitHub Discussions](https://github.com/Y143322/tmdb_movies_recommond/discussions)
+- 🐛 [GitHub Issues](https://github.com/Y143322/tmdb_movies_recommond/issues)
 
 ### 联系方式
 
-- 📧 Email: your.email@example.com
-- 💬 WeChat: your-wechat-id
+- 📧 Email: ylc1433223@163.com
 
 ---
 
@@ -436,7 +437,7 @@ doc/
 
 感谢所有为项目做出贡献的开发者！
 
-[![Contributors](https://contrib.rocks/image?repo=yourusername/movies-recommend)](https://github.com/yourusername/movies-recommend/graphs/contributors)
+[![Contributors](https://contrib.rocks/image?repo=Y143322/tmdb_movies_recommond)](https://github.com/Y143322/tmdb_movies_recommond/graphs/contributors)
 
 ---
 

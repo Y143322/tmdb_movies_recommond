@@ -169,7 +169,7 @@ class Config:
 git init
 
 # 添加远程仓库
-git remote add origin https://github.com/yourusername/movies-recommend.git
+git remote add origin https://github.com/Y143322/tmdb_movies_recommond.git
 
 # 提交代码
 git add .
@@ -191,7 +191,7 @@ git push -u origin main
 [![Python](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/)
 [![Flask](https://img.shields.io/badge/flask-2.0+-green.svg)](https://flask.palletsprojects.com/)
 [![License](https://img.shields.io/badge/license-MIT-orange.svg)](LICENSE)
-[![Stars](https://img.shields.io/github/stars/yourusername/movies-recommend)](https://github.com/yourusername/movies-recommend/stargazers)
+[![Stars](https://img.shields.io/github/stars/Y143322/tmdb_movies_recommond)](https://github.com/Y143322/tmdb_movies_recommond/stargazers)
 ```
 
 ### 3. 推广项目

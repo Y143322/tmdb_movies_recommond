@@ -916,7 +916,7 @@ X-RateLimit-Reset: 1642345678
 ## 联系支持
 
 如有问题，请：
-- 查看 [GitHub Issues](https://github.com/yourusername/movies-recommend/issues)
+- 查看 [GitHub Issues](https://github.com/Y143322/tmdb_movies_recommond/issues)
 - 发送邮件至: your.email@example.com
 
 ---

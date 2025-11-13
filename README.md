@@ -85,8 +85,8 @@ screenshots/
 ### 1. 克隆项目
 
 ```bash
-git clone https://github.com/yourusername/movies-recommend.git
-cd movies-recommend
+git clone https://github.com/Y143322/tmdb_movies_recommond.git
+cd tmdb_movies_recommond
 ```
 
 ### 2. 创建虚拟环境
@@ -407,25 +407,28 @@ python scripts/add_realistic_ratings.py
 
 ## 👥 作者
 
-- **Your Name** - *Initial work* - [YourGitHub](https://github.com/yourusername)
+- **Y143322** - *Initial work* - [GitHub](https://github.com/Y143322)
 
 ## 🙏 致谢
 
 - [TMDB](https://www.themoviedb.org/) - 提供电影数据 API
 - [Flask](https://flask.palletsprojects.com/) - Web 框架
 - [Scikit-learn](https://scikit-learn.org/) - 机器学习库
+- [GitHub Copilot](https://github.com/features/copilot) - AI 辅助代码生成和文档编写
+
+> **📝 说明**: 本项目的部分代码和文档使用了 AI (GitHub Copilot) 进行辅助生成，以提高开发效率和文档质量。
 
 ## 📞 联系方式
 
-- 项目主页: https://github.com/yourusername/movies-recommend
-- 问题反馈: https://github.com/yourusername/movies-recommend/issues
-- 邮箱: your.email@example.com
+- 项目主页: https://github.com/Y143322/tmdb_movies_recommond
+- 问题反馈: https://github.com/Y143322/tmdb_movies_recommond/issues
+- 邮箱: ylc1433223@163.com
 
 ## ⭐ Star History
 
 如果这个项目对您有帮助，请给个 Star ⭐
 
-[![Star History Chart](https://api.star-history.com/svg?repos=yourusername/movies-recommend&type=Date)](https://star-history.com/#yourusername/movies-recommend&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=Y143322/tmdb_movies_recommond&type=Date)](https://star-history.com/#Y143322/tmdb_movies_recommond&Date)
 
 ---
 

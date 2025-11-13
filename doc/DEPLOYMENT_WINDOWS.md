@@ -106,7 +106,7 @@ git --version
 ```powershell
 # 克隆项目到指定目录
 cd D:\Projects
-git clone https://github.com/yourusername/movies-recommend.git
+git clone https://github.com/Y143322/tmdb_movies_recommond.git
 cd movies-recommend
 ```
 
@@ -681,7 +681,7 @@ pip list
 ## 技术支持
 
 如遇到问题：
-1. 查看项目 [Issues](https://github.com/yourusername/movies-recommend/issues)
+1. 查看项目 [Issues](https://github.com/Y143322/tmdb_movies_recommond/issues)
 2. 查看 [FAQ](doc/FAQ.md)
 3. 联系项目维护者
 
