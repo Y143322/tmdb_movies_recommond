@@ -1,24 +1,90 @@
 """
 主蓝图，处理首页、电影列表等功能
 """
-import os
-import sys
-# 将项目根目录添加到Python路径
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
-
 import math
 import inspect
 from datetime import datetime
 from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for, session, current_app
 from flask_login import current_user, login_required
 from movies_recommend.extensions import get_db_connection
+from movies_recommend.request_utils import normalize_id_list
+from movies_recommend.db_utils import fetch_random_rows_by_id_range
 import pymysql
 import random
-import time
-import logging
+
 
 # 创建蓝图
 main_bp = Blueprint('main', __name__)
+
+
+def _safe_error_message(action='操作失败'):
+    """统一对外错误信息，避免泄露内部异常细节。"""
+    return f'{action}，请稍后重试'
+
+
+def _fetch_random_movie_rows(cursor, limit, select_columns, exclude_ids=None, extra_where='', extra_params=None):
+    """按随机 ID 起点抓取电影，避免 ORDER BY RAND()。"""
+    conditions = []
+    params = []
+
+    normalized_excluded_ids = normalize_id_list(exclude_ids or [])
+    if normalized_excluded_ids:
+        placeholders = ', '.join(['%s'] * len(normalized_excluded_ids))
+        conditions.append(f'id NOT IN ({placeholders})')
+        params.extend(normalized_excluded_ids)
+
+    if extra_where:
+        conditions.append(extra_where.strip())
+    if extra_params:
+        params.extend(list(extra_params))
+
+    where_clause = ' AND '.join(conditions)
+    return fetch_random_rows_by_id_range(
+        cursor=cursor,
+        table='movies',
+        select_columns=select_columns,
+        limit=limit,
+        where_clause=where_clause,
+        params=params,
+    )
+
+
+def _apply_movie_metadata(cursor, movies):
+    """批量补充电影类型与发行年份，避免逐条查询。"""
+    if not movies:
+        return
+
+    movie_ids = normalize_id_list([movie.get('id') for movie in movies])
+    if not movie_ids:
+        return
+
+    placeholders = ', '.join(['%s'] * len(movie_ids))
+    cursor.execute(
+        f'SELECT id, genres, release_date FROM movies WHERE id IN ({placeholders})',
+        movie_ids,
+    )
+    metadata_rows = cursor.fetchall() or []
+    metadata_map = {row.get('id'): row for row in metadata_rows if isinstance(row, dict)}
+
+    for movie in movies:
+        metadata = metadata_map.get(movie.get('id')) or {}
+        raw_genres = metadata.get('genres')
+        if raw_genres:
+            movie['genres'] = [genre.strip() for genre in str(raw_genres).split(',') if genre.strip()]
+        else:
+            movie['genres'] = []
+
+        release_date = metadata.get('release_date')
+        if release_date:
+            try:
+                if hasattr(release_date, 'year'):
+                    movie['release_year'] = str(release_date.year)
+                else:
+                    movie['release_year'] = str(release_date).split('-')[0]
+            except Exception:
+                movie['release_year'] = None
+        else:
+            movie['release_year'] = None
 
 # 更新电影评分函数
 def update_movie_rating(cursor, movie_id):
@@ -61,8 +127,11 @@ def index():
     conn = get_db_connection()
     cursor = conn.cursor(pymysql.cursors.DictCursor)
     try:
-        cursor.execute("SELECT id, title, poster_path as image, '' as actors, release_date as release_time, vote_average as score FROM movies ORDER BY RAND() LIMIT 5")
-        random_movies_raw = cursor.fetchall()
+        random_movies_raw = _fetch_random_movie_rows(
+            cursor,
+            limit=5,
+            select_columns="id, title, poster_path as image, '' as actors, release_date as release_time, vote_average as score",
+        )
 
         # 清空随机电影列表并处理海报路径
         random_movies = []
@@ -166,8 +235,9 @@ def refresh_recommendations():
 
         # 获取当前推荐的电影ID列表(如果有)，用于排除
         current_movie_ids = []
-        if request.json and 'current_movies' in request.json:
-            current_movie_ids = request.json.get('current_movies', [])
+        request_json = request.get_json(silent=True) or {}
+        if 'current_movies' in request_json:
+            current_movie_ids = normalize_id_list(request_json.get('current_movies', []))
             
         # 从会话中获取已推荐过的电影ID列表
         user_id_key = str(current_user.id) if current_user.is_authenticated else 'anonymous'
@@ -208,21 +278,12 @@ def refresh_recommendations():
                 cursor = conn.cursor(pymysql.cursors.DictCursor)
                 try:
                     # 排除当前显示的电影和历史推荐
-                    exclude_condition = ""
-                    params = []
-                    if exclude_ids:
-                        exclude_condition = "WHERE id NOT IN (" + ", ".join(["%s"] * len(exclude_ids)) + ")"
-                        params = exclude_ids
-
-                    query = f"""
-                        SELECT id, title, poster_path as image, '' as actors, release_date as release_time, vote_average as score
-                        FROM movies
-                        {exclude_condition}
-                        ORDER BY RAND()
-                        LIMIT 5
-                    """
-                    cursor.execute(query, params)
-                    result_movies = cursor.fetchall()
+                    result_movies = _fetch_random_movie_rows(
+                        cursor,
+                        limit=5,
+                        select_columns="id, title, poster_path as image, '' as actors, release_date as release_time, vote_average as score",
+                        exclude_ids=exclude_ids,
+                    )
 
                     # 处理海报路径
                     for movie in result_movies:
@@ -331,21 +392,12 @@ def refresh_recommendations():
                 cursor = conn.cursor(pymysql.cursors.DictCursor)
                 try:
                     # 排除当前显示的电影和历史推荐
-                    exclude_condition = ""
-                    params = []
-                    if exclude_ids:
-                        exclude_condition = "WHERE id NOT IN (" + ", ".join(["%s"] * len(exclude_ids)) + ")"
-                        params = exclude_ids
-
-                    query = f"""
-                        SELECT id, title, poster_path as image, '' as actors, release_date as release_time, vote_average as score
-                        FROM movies
-                        {exclude_condition}
-                        ORDER BY RAND()
-                        LIMIT 5
-                    """
-                    cursor.execute(query, params)
-                    result_movies = cursor.fetchall()
+                    result_movies = _fetch_random_movie_rows(
+                        cursor,
+                        limit=5,
+                        select_columns="id, title, poster_path as image, '' as actors, release_date as release_time, vote_average as score",
+                        exclude_ids=exclude_ids,
+                    )
 
                     # 处理海报路径
                     for movie in result_movies:
@@ -385,21 +437,12 @@ def refresh_recommendations():
             cursor = conn.cursor(pymysql.cursors.DictCursor)
             try:
                 # 排除当前显示的电影和历史推荐
-                exclude_condition = ""
-                params = []
-                if exclude_ids:
-                    exclude_condition = "WHERE id NOT IN (" + ", ".join(["%s"] * len(exclude_ids)) + ")"
-                    params = exclude_ids
-
-                query = f"""
-                    SELECT id, title, poster_path as image, '' as actors, release_date as release_time, vote_average as score
-                    FROM movies
-                    {exclude_condition}
-                    ORDER BY RAND()
-                    LIMIT 5
-                """
-                cursor.execute(query, params)
-                result_movies = cursor.fetchall()
+                result_movies = _fetch_random_movie_rows(
+                    cursor,
+                    limit=5,
+                    select_columns="id, title, poster_path as image, '' as actors, release_date as release_time, vote_average as score",
+                    exclude_ids=exclude_ids,
+                )
 
                 # 处理海报路径
                 for movie in result_movies:
@@ -436,7 +479,7 @@ def refresh_recommendations():
     except Exception as e:
         # 记录错误并返回错误信息
         current_app.logger.error(f"刷新推荐失败: {e}")
-        return jsonify({'success': False, 'message': f'刷新推荐失败: {str(e)}'}), 500
+        return jsonify({'success': False, 'message': _safe_error_message('刷新推荐失败')}), 500
 
 @main_bp.route('/movies')
 @main_bp.route('/movies/<int:page>')
@@ -627,7 +670,7 @@ def like_comment(rating_id):
         conn.close()
         # 记录错误日志
         current_app.logger.error(f"点赞操作失败: {str(e)}")
-        return jsonify({'success': False, 'message': f'操作失败: {str(e)}'}), 500
+        return jsonify({'success': False, 'message': _safe_error_message('操作失败')}), 500
 
 @main_bp.route('/reply_comment/<int:rating_id>', methods=['POST'], endpoint='reply_comment_endpoint')
 def reply_comment(rating_id):
@@ -654,7 +697,7 @@ def reply_comment(rating_id):
                 return redirect(url_for('main.index'))
 
     # 获取表单数据
-    reply_content = request.form.get('reply', '').strip()
+    reply_content = (request.form.get('reply') or '').strip()
     movie_id = request.form.get('movie_id')
 
     # 验证数据
@@ -752,7 +795,7 @@ def reply_comment(rating_id):
     except Exception as e:
         # 如果发生错误，回滚事务
         conn.rollback()
-        flash(f'发布回复失败: {str(e)}', 'error')
+        flash(_safe_error_message('发布回复失败'), 'error')
     finally:
         # 关闭数据库连接
         cursor.close()
@@ -823,7 +866,7 @@ def delete_reply(reply_id):
     except Exception as e:
         # 如果发生错误，回滚事务
         conn.rollback()
-        flash(f'删除回复失败: {str(e)}', 'error')
+        flash(_safe_error_message('删除回复失败'), 'error')
         # 重定向到首页（因为可能无法获取电影ID）
         cursor.close()
         conn.close()
@@ -911,7 +954,7 @@ def movie_detail(movie_id, page=1):
                         
                 except Exception as e:
                     conn.rollback()
-                    print(f"记录观影历史失败: {e}")
+                    current_app.logger.warning(f"记录观影历史失败: {e}")
 
             # 获取电影类型，只从 movies 表的 genres 列中获取
             if movie[12] and isinstance(movie[12], str) and movie[12].strip():  # genres 列在索引位置 12
@@ -956,7 +999,7 @@ def movie_detail(movie_id, page=1):
             local_avg_rating = cursor.fetchone()[0]
             
             # 更新电影信息中的评分和评分人数
-            if local_avg_rating is not None:
+            if local_avg_rating is not None and movie is not None:
                 movie[8] = round(float(local_avg_rating), 1)  # 用本地平均评分替换TMDB评分，保留一位小数
                 movie[9] = local_ratings_count      # 用本地评分人数替换TMDB评分人数
 
@@ -1103,7 +1146,7 @@ def movie_detail(movie_id, page=1):
             total_reviews=total_reviews
         )
     except Exception as e:
-        flash(f"获取电影详情失败: {str(e)}")
+        flash(_safe_error_message('获取电影详情失败'), 'error')
         return redirect(url_for('main.show_movies', page=1))
 
 @main_bp.route('/rate_movie/<int:movie_id>', methods=['POST'])
@@ -1147,7 +1190,7 @@ def rate_movie(movie_id):
 
     # 从表单获取评分和评论数据
     rating_value = request.form.get('rating', type=float)
-    comment = request.form.get('comment', '').strip()
+    comment = (request.form.get('comment') or '').strip()
 
     # 检查评分值是否有效
     if not rating_value or rating_value < 0.5 or rating_value > 10:
@@ -1283,11 +1326,11 @@ def rate_movie(movie_id):
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             response = {
                 'success': False,
-                'message': f'评分失败: {str(e)}'
+                'message': _safe_error_message('评分失败')
             }
             return jsonify(response), 500
         else:
-            flash(f'评分失败: {str(e)}', 'error')
+            flash(_safe_error_message('评分失败'), 'error')
     finally:
         # 关闭数据库连接
         cursor.close()
@@ -1296,6 +1339,8 @@ def rate_movie(movie_id):
     # 对于非AJAX请求，重定向回电影详情页面
     if not (request.headers.get('X-Requested-With') == 'XMLHttpRequest'):
         return redirect(url_for('main.movie_detail', movie_id=movie_id))
+
+    return jsonify({'success': False, 'message': _safe_error_message('评分失败')}), 500
 
 @main_bp.route('/user_ratings')
 @main_bp.route('/user_ratings/<int:page>')
@@ -1454,8 +1499,9 @@ def refresh_similar_movies(movie_id):
 
         # 获取当前推荐的电影ID列表(如果有)，用于排除
         current_movie_ids = []
-        if request.json and 'current_movies' in request.json:
-            current_movie_ids = request.json.get('current_movies', [])
+        request_json = request.get_json(silent=True) or {}
+        if 'current_movies' in request_json:
+            current_movie_ids = normalize_id_list(request_json.get('current_movies', []))
 
         # 确保movie_id不在排除列表中
         if movie_id in current_movie_ids:
@@ -1504,7 +1550,7 @@ def refresh_similar_movies(movie_id):
                     need_more = fixed_movie_count - len(result_movies)
 
                     # 记录已选择的电影ID
-                    selected_ids = [movie.get('id') for movie in result_movies]
+                    selected_ids = normalize_id_list([movie.get('id') for movie in result_movies])
 
                     # 获取随机电影补充
                     conn = get_db_connection()
@@ -1512,17 +1558,12 @@ def refresh_similar_movies(movie_id):
 
                     # 构建排除条件
                     excluded_ids = [movie_id] + current_movie_ids + selected_ids
-                    excluded_ids_str = ','.join(map(str, excluded_ids))
-
-                    cursor.execute(f"""
-                        SELECT id, title, poster_path as image, vote_average as score, vote_count
-                        FROM movies
-                        WHERE id NOT IN ({excluded_ids_str})
-                        ORDER BY RAND()
-                        LIMIT {need_more}
-                    """)
-
-                    additional_movies = cursor.fetchall()
+                    additional_movies = _fetch_random_movie_rows(
+                        cursor,
+                        limit=need_more,
+                        select_columns='id, title, poster_path as image, vote_average as score, vote_count',
+                        exclude_ids=excluded_ids,
+                    )
                     cursor.close()
                     conn.close()
 
@@ -1542,17 +1583,12 @@ def refresh_similar_movies(movie_id):
 
                 # 构建排除条件
                 excluded_ids = [movie_id] + current_movie_ids
-                excluded_ids_str = ','.join(map(str, excluded_ids))
-
-                cursor.execute(f"""
-                    SELECT id, title, poster_path as image, vote_average as score, vote_count
-                    FROM movies
-                    WHERE id NOT IN ({excluded_ids_str})
-                    ORDER BY RAND()
-                    LIMIT {fixed_movie_count}
-                """)
-
-                result_movies = cursor.fetchall()
+                result_movies = _fetch_random_movie_rows(
+                    cursor,
+                    limit=fixed_movie_count,
+                    select_columns='id, title, poster_path as image, vote_average as score, vote_count',
+                    exclude_ids=excluded_ids,
+                )
 
                 # 处理海报路径并添加相似性原因
                 for movie in result_movies:
@@ -1568,32 +1604,7 @@ def refresh_similar_movies(movie_id):
                         'reason': "热门推荐"
                     }
 
-                    # 查询电影类型以便前端可以计算类型相似性
-                    cursor.execute("""
-                        SELECT genres FROM movies WHERE id = %s
-                    """, (movie['id'],))
-                    genre_result = cursor.fetchone()
-                    if genre_result and genre_result['genres']:
-                        movie['genres'] = [g.strip() for g in genre_result['genres'].split(',')]
-                    else:
-                        movie['genres'] = []
-
-                    # 查询电影发行年份
-                    cursor.execute("""
-                        SELECT release_date FROM movies WHERE id = %s
-                    """, (movie['id'],))
-                    date_result = cursor.fetchone()
-                    if date_result and date_result['release_date']:
-                        try:
-                            release_date = date_result['release_date']
-                            if hasattr(release_date, 'year'):
-                                # datetime对象
-                                movie['release_year'] = str(release_date.year)
-                            else:
-                                # 字符串
-                                movie['release_year'] = str(release_date).split('-')[0]
-                        except:
-                            movie['release_year'] = None
+                _apply_movie_metadata(cursor, result_movies)
 
                 cursor.close()
                 conn.close()
@@ -1608,17 +1619,12 @@ def refresh_similar_movies(movie_id):
 
             # 构建排除条件
             excluded_ids = [movie_id] + current_movie_ids
-            excluded_ids_str = ','.join(map(str, excluded_ids))
-
-            cursor.execute(f"""
-                SELECT id, title, poster_path as image, vote_average as score, vote_count
-                FROM movies
-                WHERE id NOT IN ({excluded_ids_str})
-                ORDER BY RAND()
-                LIMIT {fixed_movie_count}
-            """)
-
-            result_movies = cursor.fetchall()
+            result_movies = _fetch_random_movie_rows(
+                cursor,
+                limit=fixed_movie_count,
+                select_columns='id, title, poster_path as image, vote_average as score, vote_count',
+                exclude_ids=excluded_ids,
+            )
 
             # 处理海报路径并添加相似性原因
             for movie in result_movies:
@@ -1634,32 +1640,7 @@ def refresh_similar_movies(movie_id):
                     'reason': "热门推荐"
                 }
 
-                # 查询电影类型以便前端可以计算类型相似性
-                cursor.execute("""
-                    SELECT genres FROM movies WHERE id = %s
-                """, (movie['id'],))
-                genre_result = cursor.fetchone()
-                if genre_result and genre_result['genres']:
-                    movie['genres'] = [g.strip() for g in genre_result['genres'].split(',')]
-                else:
-                    movie['genres'] = []
-
-                # 查询电影发行年份
-                cursor.execute("""
-                    SELECT release_date FROM movies WHERE id = %s
-                """, (movie['id'],))
-                date_result = cursor.fetchone()
-                if date_result and date_result['release_date']:
-                    try:
-                        release_date = date_result['release_date']
-                        if hasattr(release_date, 'year'):
-                            # datetime对象
-                            movie['release_year'] = str(release_date.year)
-                        else:
-                            # 字符串
-                            movie['release_year'] = str(release_date).split('-')[0]
-                    except:
-                        movie['release_year'] = None
+            _apply_movie_metadata(cursor, result_movies)
 
             cursor.close()
             conn.close()
@@ -1681,7 +1662,7 @@ def refresh_similar_movies(movie_id):
     except Exception as e:
         # 记录错误并返回错误信息
         current_app.logger.error(f"刷新相似电影推荐失败: {e}")
-        return jsonify({'success': False, 'message': f'刷新推荐失败: {str(e)}'}), 500
+        return jsonify({'success': False, 'message': _safe_error_message('刷新推荐失败')}), 500
 
 @main_bp.route('/user_preferences')
 @login_required

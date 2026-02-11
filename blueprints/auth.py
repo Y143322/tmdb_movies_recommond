@@ -2,21 +2,74 @@
 认证蓝图，处理用户登录、注册、登出等功能
 """
 import os
-import sys
-# 将项目根目录添加到Python路径
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
-
 import re
-from flask import Blueprint, render_template, request, redirect, url_for, flash, session, jsonify
+import secrets
+from typing import Any
+from urllib.parse import urljoin, urlparse
+from flask import Blueprint, render_template, request, redirect, url_for, flash, session, jsonify, current_app
 from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
+from rate_limiter import RateLimiter
 from movies_recommend.models import User
 from movies_recommend.extensions import get_db_connection
+from movies_recommend.request_utils import is_api_request as is_json_request
+from movies_recommend.auth_service import (
+    create_user_record,
+    username_exists,
+    verify_user_credentials,
+    validate_email,
+    validate_username,
+)
 import pymysql
 from functools import wraps
 
 # 创建蓝图
 auth_bp = Blueprint('auth', __name__)
+auth_write_limiter = RateLimiter(requests_per_minute=1200, safety_factor=1.0)
+
+
+def _mask_sensitive_fields(form_data):
+    """对日志中的敏感字段做脱敏处理。"""
+    masked_data = {}
+    for key, value in form_data.items():
+        key_lower = str(key).lower()
+        if any(token in key_lower for token in ('password', 'token', 'secret')):
+            masked_data[key] = '******'
+        else:
+            masked_data[key] = value
+    return masked_data
+
+
+def _is_safe_redirect_url(target):
+    """校验重定向URL是否同源，避免开放重定向。"""
+    if not target:
+        return False
+    host_url = request.host_url
+    ref_url = urlparse(host_url)
+    test_url = urlparse(urljoin(host_url, target))
+    return test_url.scheme in ('http', 'https') and ref_url.netloc == test_url.netloc
+
+
+def _is_test_login_api_enabled():
+    """仅在开发环境并显式开启时启用测试登录接口。"""
+    return current_app.config.get('DEBUG', False) and os.environ.get('ENABLE_TEST_LOGIN_API', '').lower() in ('1', 'true', 'yes')
+
+
+def _password_min_length():
+    """统一密码最小长度配置。"""
+    return int(current_app.config.get('PASSWORD_MIN_LENGTH', 8))
+
+
+def _is_valid_csrf_form():
+    """校验表单 CSRF Token。"""
+    token = request.form.get('csrf_token')
+    session_token = session.get('_csrf_token')
+    if not token or not session_token:
+        return False
+    try:
+        return secrets.compare_digest(str(token), str(session_token))
+    except Exception:
+        return False
 
 # 添加装饰器，用于检测API响应
 def api_response_required(f):
@@ -27,21 +80,14 @@ def api_response_required(f):
         # 2. Postman或API测试工具发出的请求
         # 3. 请求头中明确要求JSON响应
         # 4. 测试模式
-        request.is_api_request = (
-            'api' in request.path or
-            request.headers.get('X-Test-Mode') == 'true' or
-            request.headers.get('Accept') == 'application/json' or
-            request.headers.get('X-Requested-With') == 'XMLHttpRequest' or
-            request.args.get('format') == 'json'
-        )
+        is_api = is_json_request(request)
         
-        # 检查User-Agent是否包含Postman
-        user_agent = request.headers.get('User-Agent', '')
-        if 'Postman' in user_agent or 'PostmanRuntime' in user_agent:
-            request.is_api_request = True
-            request.is_postman_test = True
-        else:
-            request.is_postman_test = False
+        # 记录是否来自 Postman（仅用于调试标识，不影响安全判断）
+        user_agent = request.headers.get('User-Agent') or ''
+        is_postman = ('Postman' in user_agent) or ('PostmanRuntime' in user_agent)
+
+        setattr(request, 'is_api_request', is_api)
+        setattr(request, 'is_postman_test', is_postman)
             
         return f(*args, **kwargs)
     return decorated_function
@@ -50,23 +96,8 @@ def api_response_required(f):
 @auth_bp.before_request
 @api_response_required
 def before_request():
-    """记录API请求信息到日志以帮助调试，确保敏感信息脱敏"""
-    from flask import current_app
-    if getattr(request, 'is_api_request', False):
-        current_app.logger.info(f"API请求: {request.method} {request.path}")
-        current_app.logger.info(f"请求头: {dict(request.headers)}")
-        if request.method == 'POST':
-            # 创建表单数据的安全副本，移除密码字段
-            safe_form_data = dict(request.form)
-            if 'password' in safe_form_data:
-                safe_form_data['password'] = '******'  # 替换为星号
-            current_app.logger.info(f"表单数据(安全): {safe_form_data}")
-            
-            # 对请求体进行脱敏处理
-            body = request.get_data().decode('utf-8')
-            if 'password' in body.lower():
-                body = "[包含敏感信息，已脱敏]"
-            current_app.logger.info(f"请求体(安全): {body}")
+    """通过装饰器统一标记请求类型。"""
+    return None
 
 @auth_bp.route('/register', methods=['GET', 'POST'])
 def register():
@@ -76,16 +107,22 @@ def register():
         return redirect(url_for('main.index'))
 
     if request.method == 'POST':
+        auth_write_limiter.acquire()
+
+        if not _is_valid_csrf_form():
+            flash('请求校验失败，请刷新页面后重试', 'error')
+            return render_template('register.html')
+
         username = request.form.get('username')
         password = request.form.get('password')
         confirm_password = request.form.get('confirm_password')
         email = request.form.get('email', '')
         user_type = request.form.get('user_type', 'normal')
         admin_code = request.form.get('admin_code', '')
-        captcha = request.form.get('captcha', '').lower()
+        captcha = str(request.form.get('captcha') or '').lower()
 
-        # 验证码验证 (测试模式下可以跳过验证)
-        if request.headers.get('X-Test-Mode') != 'true' and (not captcha or captcha != session.get('captcha', '')):
+        # 验证码验证
+        if not captcha or captcha != session.get('captcha', ''):
             flash('验证码错误', 'error')
             return render_template('register.html')
 
@@ -103,12 +140,17 @@ def register():
             flash('用户名长度需在3-20个字符之间', 'error')
             return render_template('register.html')
 
-        if len(password) < 8:
-            flash('密码长度至少需要8个字符', 'error')
+        if not validate_username(username):
+            flash('用户名只能包含字母、数字和下划线', 'error')
+            return render_template('register.html')
+
+        min_length = _password_min_length()
+        if len(password) < min_length:
+            flash(f'密码长度至少需要{min_length}个字符', 'error')
             return render_template('register.html')
 
         # 检查邮箱格式
-        if email and not re.match(r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$', email):
+        if email and not validate_email(email):
             flash('邮箱格式不正确', 'error')
             return render_template('register.html')
 
@@ -130,72 +172,38 @@ def register():
         cursor = conn.cursor()
 
         try:
-            # 检查用户名是否已存在于普通用户表
-            cursor.execute('SELECT id FROM userinfo WHERE username = %s', (username,))
-            if cursor.fetchone():
+            # 检查用户名是否已存在
+            if username_exists(cursor, username):
                 flash('用户名已存在', 'error')
                 return render_template('register.html')
 
-            # 检查用户名是否已存在于管理员表
-            cursor.execute('SELECT id FROM admininfo WHERE username = %s', (username,))
-            if cursor.fetchone():
-                flash('用户名已存在', 'error')
-                return render_template('register.html')
+            next_id, is_admin = create_user_record(
+                cursor=cursor,
+                username=username,
+                password=password,
+                email=email,
+                user_type=user_type,
+                logger=current_app.logger,
+            )
+            conn.commit()
 
-            # 哈希处理密码
-            hashed_password = generate_password_hash(password)
+            # 获取新用户ID并登录
+            user_obj = User(
+                id=next_id,
+                username=username,
+                email=email,
+                is_admin=is_admin
+            )
+            login_user(user_obj)
 
-            # 根据用户类型插入不同的表
-            if user_type == 'admin':
-                # 获取下一个管理员ID
-                cursor.execute("CALL get_next_user_id(@next_id, 'admin')")
-                cursor.execute("SELECT @next_id")
-                next_id = cursor.fetchone()[0]
-
-                cursor.execute(
-                    'INSERT INTO admininfo (id, username, password, email) VALUES (%s, %s, %s, %s)',
-                    (next_id, username, hashed_password, email)
-                )
-                conn.commit()
-
-                # 获取新管理员ID并登录
-                user_obj = User(
-                    id=next_id,
-                    username=username,
-                    email=email,
-                    is_admin=True
-                )
-                login_user(user_obj)
-
+            if is_admin:
                 flash('管理员注册成功并已登录', 'success')
-                return redirect(url_for('main.index'))
             else:
-                # 获取下一个普通用户ID
-                cursor.execute("CALL get_next_user_id(@next_id, 'user')")
-                cursor.execute("SELECT @next_id")
-                next_id = cursor.fetchone()[0]
-
-                # 插入普通用户
-                cursor.execute(
-                    'INSERT INTO userinfo (id, username, password, email) VALUES (%s, %s, %s, %s)',
-                    (next_id, username, hashed_password, email)
-                )
-                conn.commit()
-
-                # 获取新用户ID并登录
-                user_obj = User(
-                    id=next_id,
-                    username=username,
-                    email=email,
-                    is_admin=False
-                )
-                login_user(user_obj)
-
                 flash('注册成功并已登录', 'success')
-                return redirect(url_for('main.index'))
+            return redirect(url_for('main.index'))
         except Exception as e:
             conn.rollback()
-            flash(f'注册失败: {str(e)}', 'error')
+            flash('注册失败，请稍后重试', 'error')
         finally:
             cursor.close()
             conn.close()
@@ -223,36 +231,49 @@ def login():
         return redirect(url_for('main.index'))
 
     if request.method == 'POST':
+        auth_write_limiter.acquire()
+
         # 记录详细的请求信息，帮助调试
-        from flask import current_app
-        current_app.logger.info(f"登录POST请求: 头部={dict(request.headers)}")
+        safe_headers = {
+            'User-Agent': request.headers.get('User-Agent'),
+            'Content-Type': request.headers.get('Content-Type'),
+            'Accept': request.headers.get('Accept'),
+            'X-Requested-With': request.headers.get('X-Requested-With')
+        }
+        current_app.logger.info(f"登录POST请求: 头部(安全)={safe_headers}")
         
         # 从多种可能的来源获取凭据
         if request.is_json:
-            data = request.get_json()
+            data = request.get_json(silent=True) or {}
+            if not isinstance(data, dict):
+                data = {}
             username = data.get('username')
             password = data.get('password')
-            captcha = data.get('captcha', '').lower()
+            captcha = str(data.get('captcha') or '').lower()
         else:
             username = request.form.get('username')
             password = request.form.get('password')
-            captcha = request.form.get('captcha', '').lower()
+            captcha = str(request.form.get('captcha') or '').lower()
             
         current_app.logger.info(f"登录凭据: username={username}, captcha提供={(captcha is not None)}")
 
-        # 验证码验证 (测试模式或API请求可以跳过验证)
-        if not is_api_request and request.headers.get('X-Test-Mode') != 'true' and (not captcha or captcha != session.get('captcha', '')):
+        if not is_api_request and not _is_valid_csrf_form():
+            flash('请求校验失败，请刷新页面后重试', 'error')
+            return render_template('login.html')
+
+        # 验证码验证（浏览器登录必须校验）
+        if not is_api_request and (not captcha or captcha != session.get('captcha', '')):
             flash('验证码错误', 'error')
             return render_template('login.html')
 
         if not username or not password:
             if is_api_request:
-                # Postman测试需要HTTP 200状态码
+                # API请求参数错误返回400状态码
                 return jsonify({
                     'success': False, 
                     'message': '用户名和密码不能为空',
                     'error': 'missing_credentials'
-                }), 200
+                }), 400
             flash('用户名和密码不能为空', 'error')
             return render_template('login.html')
 
@@ -260,18 +281,9 @@ def login():
         cursor = conn.cursor(pymysql.cursors.DictCursor)
 
         try:
-            # 先检查是否是管理员
-            cursor.execute('SELECT * FROM admininfo WHERE username = %s', (username,))
-            user_data = cursor.fetchone()
-            is_admin = True
+            user_data, is_admin, error_code = verify_user_credentials(cursor, username, password)
 
-            # 如果不是管理员，检查普通用户
-            if not user_data:
-                cursor.execute('SELECT * FROM userinfo WHERE username = %s', (username,))
-                user_data = cursor.fetchone()
-                is_admin = False
-
-            if user_data and check_password_hash(user_data['password'], password):
+            if error_code is None and user_data:
                 user = User(
                     id=user_data['id'],
                     username=user_data['username'],
@@ -289,7 +301,7 @@ def login():
                         if reset_data and reset_data.get('reset_password'):
                             user.reset_password = True
                 except Exception as e:
-                    print(f"检查重置密码状态时出错: {e}")
+                    current_app.logger.warning(f"检查重置密码状态时出错: {e}")
                     
                 # 登录用户
                 login_user(user, remember=True)
@@ -314,13 +326,6 @@ def login():
                     response = jsonify(response_data)
                     response.status_code = 200
                     
-                    # 确保设置会话cookie (为了Postman测试)
-                    session_cookie = request.cookies.get('session')
-                    if not session_cookie:
-                        session_id = session.sid if hasattr(session, 'sid') else str(session.get('_id', 'session_active'))
-                        response.set_cookie('session', session_id)
-                        current_app.logger.info(f"设置会话cookie: {session_id}")
-                    
                     return response
                 
                 # 如果用户需要重置密码，重定向到修改密码页面
@@ -330,10 +335,24 @@ def login():
 
                 flash('登录成功！', 'success')
                 next_page = request.args.get('next')
-                return redirect(next_page or url_for('main.index'))
+                if next_page and _is_safe_redirect_url(next_page):
+                    return redirect(next_page)
+                return redirect(url_for('main.index'))
             else:
                 # 登录失败 - 密码错误或用户不存在
                 from flask import current_app
+                if error_code == 'deleted':
+                    if is_api_request:
+                        return jsonify({'success': False, 'message': '该账号已被删除', 'error': 'account_deleted'}), 403
+                    flash('该账号已被删除', 'error')
+                    return render_template('login.html')
+
+                if error_code == 'banned':
+                    if is_api_request:
+                        return jsonify({'success': False, 'message': '该账号已被禁言', 'error': 'account_banned'}), 403
+                    flash('该账号已被禁言', 'error')
+                    return render_template('login.html')
+
                 current_app.logger.info(f"用户 {username} 登录失败：密码错误或用户不存在")
                 
                 if is_api_request:
@@ -342,8 +361,7 @@ def login():
                         'message': '用户名或密码错误',
                         'error': 'invalid_credentials'
                     })
-                    # 返回HTTP 200以便Postman测试能够检查响应体
-                    response.status_code = 200
+                    response.status_code = 401
                     return response
                 
                 # 浏览器请求 - 显示错误消息
@@ -356,15 +374,14 @@ def login():
             if is_api_request:
                 response = jsonify({
                     'success': False, 
-                    'message': f'登录时发生错误：{str(e)}',
+                    'message': '服务器内部错误',
                     'error': 'server_error'
                 })
-                # 返回HTTP 200以便Postman测试能够检查响应体
-                response.status_code = 200
+                response.status_code = 500
                 return response
             
             # 浏览器请求 - 显示错误消息
-            flash(f'登录时发生错误：{str(e)}', 'error')
+            flash('登录时发生错误，请稍后重试', 'error')
         finally:
             # 确保关闭数据库连接
             cursor.close()
@@ -376,7 +393,7 @@ def login():
         return jsonify({
             'success': False, 
             'message': '登录API只支持POST请求'
-        }), 200  # 返回200以便Postman测试能读取
+        }), 405
     
     # 浏览器请求 - 显示登录页面
     return render_template('login.html')
@@ -394,6 +411,10 @@ def logout():
 def profile():
     """用户个人资料页面"""
     if request.method == 'POST':
+        if not _is_valid_csrf_form():
+            flash('请求校验失败，请刷新页面后重试', 'error')
+            return redirect(url_for('auth.profile'))
+
         # 处理表单提交
         if 'email' in request.form and request.form['email']:
             # 更新邮箱
@@ -423,7 +444,7 @@ def profile():
                 flash('邮箱更新成功', 'success')
             except Exception as e:
                 conn.rollback()
-                flash(f'邮箱更新失败: {str(e)}', 'error')
+                flash('邮箱更新失败，请稍后重试', 'error')
             finally:
                 cursor.close()
                 conn.close()
@@ -438,8 +459,9 @@ def profile():
                 return render_template('profile.html', user=current_user)
 
             # 验证新密码长度
-            if len(new_password) < 6:
-                flash('新密码长度至少需要6个字符', 'error')
+            min_length = _password_min_length()
+            if len(new_password) < min_length:
+                flash(f'新密码长度至少需要{min_length}个字符', 'error')
                 return render_template('profile.html', user=current_user)
 
             conn = get_db_connection()
@@ -451,13 +473,14 @@ def profile():
 
                 # 验证旧密码
                 cursor.execute(f'SELECT password FROM {table_name} WHERE id = %s', (current_user.id,))
-                stored_password = cursor.fetchone()[0]
+                password_row = cursor.fetchone()
+                stored_password = password_row[0] if password_row else None
 
-                # 特殊处理admin账户
-                if current_user.username == 'admin' and old_password == '123456':
-                    password_correct = True
-                else:
-                    password_correct = check_password_hash(stored_password, old_password)
+                if not isinstance(stored_password, str):
+                    flash('账户状态异常，请重新登录后重试', 'error')
+                    return render_template('profile.html', user=current_user)
+
+                password_correct = check_password_hash(stored_password, old_password)
 
                 if not password_correct:
                     flash('旧密码不正确', 'error')
@@ -476,7 +499,7 @@ def profile():
                 flash('密码更新成功', 'success')
             except Exception as e:
                 conn.rollback()
-                flash(f'密码更新失败: {str(e)}', 'error')
+                flash('密码更新失败，请稍后重试', 'error')
             finally:
                 cursor.close()
                 conn.close()
@@ -534,9 +557,15 @@ def profile():
 def change_password():
     """修改密码页面"""
     if request.method == 'POST':
-        current_password = request.form.get('current_password')
-        new_password = request.form.get('new_password')
-        confirm_password = request.form.get('confirm_password')
+        auth_write_limiter.acquire()
+
+        if not _is_valid_csrf_form():
+            flash('请求校验失败，请刷新页面后重试', 'error')
+            return render_template('change_password.html')
+
+        current_password = request.form.get('current_password') or ''
+        new_password = request.form.get('new_password') or ''
+        confirm_password = request.form.get('confirm_password') or ''
 
         if not all([current_password, new_password, confirm_password]):
             flash('所有字段都必须填写')
@@ -544,6 +573,11 @@ def change_password():
 
         if new_password != confirm_password:
             flash('新密码和确认密码不匹配')
+            return render_template('change_password.html')
+
+        min_length = _password_min_length()
+        if len(new_password) < min_length:
+            flash(f'新密码长度至少需要{min_length}个字符')
             return render_template('change_password.html')
 
         conn = get_db_connection()
@@ -555,8 +589,9 @@ def change_password():
             # 检查当前密码是否正确
             cursor.execute(f'SELECT password FROM {table_name} WHERE id = %s', (current_user.id,))
             user = cursor.fetchone()
+            user_password: Any = user.get('password') if isinstance(user, dict) else None
 
-            if not user or not check_password_hash(user['password'], current_password):
+            if not isinstance(user_password, str) or not check_password_hash(user_password, current_password):
                 flash('当前密码不正确')
                 cursor.close()
                 conn.close()
@@ -583,7 +618,7 @@ def change_password():
             return redirect(url_for('main.index'))
         except Exception as e:
             conn.rollback()
-            flash(f"更新密码时出错: {str(e)}")
+            flash('更新密码时出错，请稍后重试', 'error')
             return render_template('change_password.html')
         finally:
             cursor.close()
@@ -606,7 +641,7 @@ def get_captcha():
 
     # 使用PIL创建验证码图片
     width, height = 120, 40
-    image = Image.new('RGB', (width, height), color=(255, 255, 255))
+    image = Image.new('RGB', (width, height), color=255)
     draw = ImageDraw.Draw(image)
 
     # 尝试加载字体，如果失败则使用默认字体
@@ -642,6 +677,9 @@ def get_captcha():
 @auth_bp.route('/api/test-login', methods=['POST'])
 def test_login_api():
     """用于测试的API登录端点"""
+    if not _is_test_login_api_enabled():
+        return jsonify({'success': False, 'message': 'Not Found'}), 404
+
     if request.method == 'POST':
         # 从多种可能的来源获取凭据
         if request.is_json:
@@ -681,7 +719,7 @@ def test_login_api():
                 login_user(user, remember=True)
                 session.permanent = True
                 
-                # 创建会话cookie
+                # 构建成功响应
                 response = jsonify({
                     'success': True, 
                     'message': '登录成功',
@@ -692,10 +730,6 @@ def test_login_api():
                 # 设置状态码
                 response.status_code = 200
                 
-                # 确保设置cookie (Flask-Login应该已经设置，但我们再次确认)
-                if 'session' not in request.cookies:
-                    response.set_cookie('session', session.sid if hasattr(session, 'sid') else 'session_active')
-                
                 return response
             else:
                 response = jsonify({
@@ -703,15 +737,15 @@ def test_login_api():
                     'message': '用户名或密码错误',
                     'error': 'invalid_credentials'
                 })
-                response.status_code = 200  # 返回200使Postman测试能够检查响应体
+                response.status_code = 401
                 return response
         except Exception as e:
             response = jsonify({
                 'success': False, 
-                'message': f'登录时发生错误：{str(e)}',
+                'message': '服务器内部错误',
                 'error': 'server_error'
             })
-            response.status_code = 200  # 返回200使Postman测试能够检查响应体
+            response.status_code = 500
             return response
         finally:
             cursor.close()

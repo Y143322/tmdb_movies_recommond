@@ -8,8 +8,6 @@
 """
 import os
 import sys
-# 将项目根目录添加到Python路径
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import numpy as np
 import pandas as pd
@@ -38,16 +36,60 @@ from movies_recommend.knowledge_recommender import (
 )
 
 # 导入自定义模块
-from similarity_calculators import SimilarityCalculatorFactory
+from movies_recommend.similarity_calculators import SimilarityCalculatorFactory
 
-# 禁用所有警告
-warnings.filterwarnings('ignore')
+# 仅在开发环境屏蔽部分噪声警告，避免掩盖生产问题
+if os.environ.get('FLASK_ENV', 'development') == 'development':
+    warnings.filterwarnings('ignore', category=DeprecationWarning)
+    warnings.filterwarnings('ignore', category=UserWarning)
 
 # 从项目的日志模块导入日志记录器
 from movies_recommend.logger import get_logger
 logger = get_logger('recommender')
 
 from movies_recommend.extensions import get_db_connection
+from movies_recommend.db_utils import fetch_random_rows_by_id_range
+
+
+def _extract_row_id(row):
+    """兼容 tuple/dict 游标的 ID 取值。"""
+    if isinstance(row, dict):
+        return row.get('id')
+    if isinstance(row, (list, tuple)) and row:
+        return row[0]
+    return None
+
+
+def _fetch_random_movie_ids(cursor, limit, exclude_ids=None, extra_where='', extra_params=None):
+    """按随机 ID 起点获取电影 ID，避免 ORDER BY RAND()。"""
+    if limit <= 0:
+        return []
+
+    conditions = []
+    params = []
+
+    if exclude_ids:
+        normalized_exclude = [int(x) for x in exclude_ids if x is not None]
+        if normalized_exclude:
+            placeholders = ', '.join(['%s'] * len(normalized_exclude))
+            conditions.append(f'id NOT IN ({placeholders})')
+            params.extend(normalized_exclude)
+
+    if extra_where:
+        conditions.append(extra_where.strip())
+    if extra_params:
+        params.extend(list(extra_params))
+
+    where_clause = ' AND '.join(conditions)
+    rows = fetch_random_rows_by_id_range(
+        cursor=cursor,
+        table='movies',
+        select_columns='id',
+        limit=limit,
+        where_clause=where_clause,
+        params=params,
+    )
+    return [int(movie_id) for movie_id in (_extract_row_id(row) for row in rows) if movie_id is not None]
 
 class MovieRecommender:
     """电影评分推荐系统类"""
@@ -58,8 +100,8 @@ class MovieRecommender:
         Args:
             verbose (bool): 是否输出详细日志
         """
-        self.user_ratings_df = None
-        self.movies_df = None
+        self.user_ratings_df: pd.DataFrame = pd.DataFrame()
+        self.movies_df: pd.DataFrame = pd.DataFrame()
         self.user_movie_matrix = None
         self.movie_movie_matrix = None  # 电影-电影相似度矩阵
         self.movie_features = None
@@ -67,6 +109,8 @@ class MovieRecommender:
         self.last_update = None
         self.verbose = verbose
         self.random_factor = 0.1  # 随机因子，用于增加推荐多样性
+        self.user_to_idx: Dict[Any, int] = {}
+        self.movie_to_idx: Dict[Any, int] = {}
 
         # 尝试加载缓存的模型
         self.load_data()
@@ -183,24 +227,28 @@ class MovieRecommender:
             for idx, row in self.movies_df.iterrows():
                 features = []
                 # 添加导演信息（权重高）
-                if pd.notna(row.get('directors')):
-                    directors = row['directors']
+                directors = row.get('directors')
+                if directors is not None and not pd.isna(directors) and str(directors).strip():
+                    directors_text = str(directors)
                     # 重复3次导演名字，增加权重
-                    features.append(directors)
-                    features.append(directors)
-                    features.append(directors)
+                    features.append(directors_text)
+                    features.append(directors_text)
+                    features.append(directors_text)
                 
                 # 添加演员信息
-                if pd.notna(row.get('actors')):
-                    features.append(row['actors'])
+                actors = row.get('actors')
+                if actors is not None and not pd.isna(actors) and str(actors).strip():
+                    features.append(str(actors))
                 
                 # 添加上映时间
-                if pd.notna(row.get('release_time')):
-                    features.append(str(row['release_time']))
+                release_time = row.get('release_time')
+                if release_time is not None and not pd.isna(release_time):
+                    features.append(str(release_time))
                     
                 # 添加电影类型
-                if pd.notna(row.get('genres')):
-                    features.append(row['genres'])
+                genres = row.get('genres')
+                if genres is not None and not pd.isna(genres) and str(genres).strip():
+                    features.append(str(genres))
 
                 self.movies_df.at[idx, 'features'] = ' '.join(features)
 
@@ -345,10 +393,19 @@ class MovieRecommender:
             similar_users = [list(self.user_to_idx.keys())[list(self.user_to_idx.values()).index(idx)] for idx in similar_users_indices]
 
             # 获取相似用户评分的电影
-            similar_user_movies = self.user_ratings_df[self.user_ratings_df['user_id'].isin(similar_users)]
+            similar_user_movies = pd.DataFrame(
+                self.user_ratings_df[self.user_ratings_df['user_id'].isin(similar_users)]
+            ).copy()
 
             # 排除用户已评分的电影
-            recommendations = similar_user_movies[~similar_user_movies['movie_id'].isin(rated_movies)]
+            recommendations = pd.DataFrame(
+                similar_user_movies[
+                    ~similar_user_movies['movie_id'].isin(list(rated_movies))
+                ]
+            ).copy()
+
+            if recommendations.empty:
+                return []
 
             # 计算推荐分数
             recommendations = recommendations.groupby('movie_id').agg({
@@ -530,6 +587,9 @@ class MovieRecommender:
             list: 推荐电影列表，每个元素为(movie_id, score)
         """
         try:
+            if self.user_ratings_df.empty or self.movies_df.empty:
+                return []
+
             # 获取用户评分过的电影
             user_ratings = self.user_ratings_df[
                 self.user_ratings_df['user_id'] == user_id
@@ -607,8 +667,11 @@ class MovieRecommender:
             
             # 转换为特征矩阵
             feature_matrix = tfidf.fit_transform(movies['features'])
-            
-            return feature_matrix.toarray()
+            to_array = getattr(feature_matrix, 'toarray', None)
+            if callable(to_array):
+                return np.asarray(to_array())
+
+            return np.asarray(feature_matrix)
             
         except Exception as e:
             logger.error(f"提取电影特征失败: {str(e)}")
@@ -742,6 +805,13 @@ class MovieRecommender:
             if self.check_update_needed():
                 self.load_data()
 
+            if self.user_ratings_df.empty:
+                recommendations = get_knowledge_recommendations_for_user(user_id, n)
+                return [
+                    {'movie_id': movie_id, 'score': score}
+                    for movie_id, score in recommendations
+                ]
+
             # 获取用户评分记录
             user_ratings = self.user_ratings_df[
                 self.user_ratings_df['user_id'] == user_id
@@ -833,22 +903,7 @@ class MovieRecommender:
             all_exclude_ids = list(set(all_exclude_ids))
 
             # 获取热门电影
-            if all_exclude_ids:
-                placeholders = ','.join(['%s'] * len(all_exclude_ids))
-                cursor.execute(f"""
-                    SELECT id FROM movies
-                    WHERE id NOT IN ({placeholders})
-                    ORDER BY RAND()
-                    LIMIT %s
-                """, all_exclude_ids + [n])
-            else:
-                cursor.execute("""
-                    SELECT id FROM movies
-                    ORDER BY RAND()
-                    LIMIT %s
-                """, (n,))
-
-            movie_ids = [row[0] for row in cursor.fetchall()]
+            movie_ids = _fetch_random_movie_ids(cursor, limit=n, exclude_ids=all_exclude_ids)
             cursor.close()
             conn.close()
 
@@ -951,71 +1006,8 @@ class MovieRecommender:
             return []
 
     def get_recommendations(self, user_id, n=10):
-        """获取用户的电影推荐
-        
-        整合混合推荐策略，并根据用户状态选择合适的推荐方法：
-        - 新用户使用基于知识的推荐
-        - 有评分记录的用户使用混合推荐策略
-        - 推荐失败时回退到热门电影推荐
-        
-        Args:
-            user_id (int): 用户ID
-            n (int): 推荐数量
-            
-        Returns:
-            list: 推荐电影列表，每个元素为字典格式
-        """
-        try:
-            # 检查是否需要更新推荐模型
-            if self.check_update_needed():
-                self.load_data()
-
-            # 获取用户评分记录
-            user_ratings = self.user_ratings_df[
-                self.user_ratings_df['user_id'] == user_id
-            ]
-
-            # 根据用户状态选择推荐策略
-            if user_ratings.empty:
-                # 新用户使用基于知识的推荐
-                logger.info(f"用户 {user_id} 没有评分记录，使用基于知识的推荐")
-                recommendations = get_knowledge_recommendations_for_user(user_id, n)
-                # 转换为字典格式
-                recommendations = [
-                    {'movie_id': movie_id, 'score': score}
-                    for movie_id, score in recommendations
-                ]
-            else:
-                # 使用混合推荐策略
-                logger.info(f"用户 {user_id} 使用混合推荐策略")
-                hybrid_recs = self.get_hybrid_recommendations(user_id, n)
-                # 转换为字典格式
-                recommendations = [
-                    {'movie_id': movie_id, 'score': score}
-                    for movie_id, score in hybrid_recs
-                ]
-
-            # 如果推荐结果不足，补充热门电影
-            if len(recommendations) < n:
-                logger.info(f"推荐结果不足 {n} 个，补充热门电影")
-                exclude_ids = [rec['movie_id'] for rec in recommendations]
-                popular_recs = self._get_popular_movies_excluding(
-                    n - len(recommendations),
-                    exclude_ids,
-                    user_id
-                )
-                recommendations.extend(popular_recs)
-
-            # 保存推荐结果到数据库
-            if recommendations:
-                self.save_recommendations(user_id, recommendations, 'hybrid')
-
-            return recommendations[:n]
-
-        except Exception as e:
-            logger.error(f"获取推荐失败: {str(e)}")
-            # 发生错误时返回热门电影
-            return self.get_popular_movies_as_recommendations(n)
+        """兼容历史调用，转调统一实现。"""
+        return self.get_user_recommendations(user_id, n)
 
     def get_popular_movies(self, n=10):
         """获取热门电影ID列表
@@ -1055,12 +1047,7 @@ class MovieRecommender:
                 # 如果没有结果，使用备用查询
                 conn = get_db_connection()
                 cursor = conn.cursor()
-                cursor.execute("""
-                    SELECT id FROM movies
-                    ORDER BY RAND()
-                    LIMIT %s
-                """, (n,))
-                movie_ids = [int(row[0]) for row in cursor.fetchall()]
+                movie_ids = _fetch_random_movie_ids(cursor, limit=n)
                 cursor.close()
                 conn.close()
                 return movie_ids
@@ -1103,6 +1090,9 @@ class MovieRecommender:
             return []
 
         try:
+            if self.user_ratings_df.empty or self.movies_df.empty:
+                return []
+
             # 获取用户评分过的电影
             user_ratings = self.user_ratings_df[self.user_ratings_df['user_id'] == user_id]
             if user_ratings.empty:
@@ -1169,6 +1159,9 @@ class MovieRecommender:
             list: 推荐电影列表
         """
         try:
+            if self.user_ratings_df.empty:
+                return []
+
             # 获取各种推荐结果
             user_cf_recs = self.get_collaborative_recommendations(user_id, n=n)
             item_cf_recs = self.get_item_based_recommendations(user_id, n=n)
@@ -1376,14 +1369,8 @@ def get_recommendations_for_user(user_id, n=5, refresh=False, exclude_ids=None):
                     params = exclude_ids
                 
                 # 获取随机电影
-                query = f"""
-                    SELECT id FROM movies
-                    {exclude_condition}
-                    ORDER BY RAND()
-                    LIMIT %s
-                """
-                cursor.execute(query, params + [n])
-                movie_ids = [int(row[0]) for row in cursor.fetchall()]
+                normalized_exclude = [int(x) for x in params if x is not None]
+                movie_ids = _fetch_random_movie_ids(cursor, limit=n, exclude_ids=normalized_exclude)
                 cursor.close()
                 conn.close()
                 return movie_ids
@@ -1437,14 +1424,12 @@ def get_recommendations_for_user(user_id, n=5, refresh=False, exclude_ids=None):
                 movie_ids = []
                 try:
                     # 直接从数据库获取热门电影
-                    cursor.execute("""
-                        SELECT id FROM movies
-                        WHERE vote_count > 50
-                        ORDER BY RAND()
-                        LIMIT %s
-                    """, (n + len(exclude_ids),))
-                    
-                    all_ids = [int(row[0]) for row in cursor.fetchall()]
+                    all_ids = _fetch_random_movie_ids(
+                        cursor,
+                        limit=n + len(exclude_ids),
+                        extra_where='vote_count > %s',
+                        extra_params=[50],
+                    )
                     # 确保exclude_ids中的元素都是整数
                     exclude_ids_int = [int(x) for x in exclude_ids if x is not None]
                     movie_ids = [m_id for m_id in all_ids if m_id not in exclude_ids_int]
@@ -1502,13 +1487,7 @@ def get_recommendations_for_user(user_id, n=5, refresh=False, exclude_ids=None):
                         logger.error(f"无法获取用户推荐: {e}")
                         # 出错时使用热门电影
                         movie_ids = []
-                        cursor.execute("""
-                            SELECT id FROM movies
-                            ORDER BY RAND()
-                            LIMIT %s
-                        """, (n + len(exclude_ids),))
-                        
-                        all_ids = [int(row[0]) for row in cursor.fetchall()]
+                        all_ids = _fetch_random_movie_ids(cursor, limit=n + len(exclude_ids))
                         # 确保exclude_ids中的元素都是整数
                         exclude_ids_int = [int(x) for x in exclude_ids if x is not None]
                         movie_ids = [m_id for m_id in all_ids if m_id not in exclude_ids_int]
@@ -1518,12 +1497,7 @@ def get_recommendations_for_user(user_id, n=5, refresh=False, exclude_ids=None):
                 # 异常情况下返回热门电影
                 movie_ids = []
                 try:
-                    cursor.execute("""
-                        SELECT id FROM movies
-                        ORDER BY RAND()
-                        LIMIT %s
-                    """, (n,))
-                    movie_ids = [int(row[0]) for row in cursor.fetchall()]
+                    movie_ids = _fetch_random_movie_ids(cursor, limit=n)
                 except Exception as e2:
                     logger.error(f"获取热门电影失败: {e2}")
         
@@ -1539,36 +1513,24 @@ def get_recommendations_for_user(user_id, n=5, refresh=False, exclude_ids=None):
                 
                 # 构建排除条件：已推荐和需要排除的电影ID
                 all_excluded_ids = list(movie_ids) + list(exclude_ids)
-                
-                if all_excluded_ids:
-                    # 使用参数化查询
-                    placeholders = ','.join(['%s'] * len(all_excluded_ids))
-                    query = f"""
-                        SELECT id FROM movies 
-                        WHERE id NOT IN ({placeholders})
-                        AND id NOT IN (SELECT movie_id FROM user_ratings WHERE user_id = %s)
-                        ORDER BY RAND()
-                        LIMIT %s
-                    """
-                    cursor.execute(query, all_excluded_ids + [user_id, n - len(movie_ids)])
-                else:
-                    query = """
-                        SELECT id FROM movies 
-                        WHERE id NOT IN (SELECT movie_id FROM user_ratings WHERE user_id = %s)
-                        ORDER BY RAND()
-                        LIMIT %s
-                    """
-                    cursor.execute(query, [user_id, n - len(movie_ids)])
-                
-                random_movies = cursor.fetchall()
+
+                rated_movie_ids = []
+                cursor.execute('SELECT movie_id FROM user_ratings WHERE user_id = %s', (user_id,))
+                rated_movie_ids = [int(_extract_row_id(row)) for row in cursor.fetchall() if _extract_row_id(row) is not None]
+
+                random_movie_ids = _fetch_random_movie_ids(
+                    cursor,
+                    limit=n - len(movie_ids),
+                    exclude_ids=all_excluded_ids + rated_movie_ids,
+                )
                 cursor.close()
                 conn.close()
                 
                 # 添加随机电影到推荐列表
-                for row in random_movies:
-                    movie_ids.append(int(row[0]))
+                for random_id in random_movie_ids:
+                    movie_ids.append(int(random_id))
                 
-                logger.info(f"补充 {len(random_movies)} 部随机电影，最终推荐 {len(movie_ids)} 部电影")
+                logger.info(f"补充 {len(random_movie_ids)} 部随机电影，最终推荐 {len(movie_ids)} 部电影")
             except Exception as e:
                 logger.error(f"补充随机电影失败: {e}")
         

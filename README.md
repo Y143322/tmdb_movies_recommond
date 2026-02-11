@@ -133,6 +133,9 @@ DB_NAME=movies_recommend
 # Flask 配置 - ⚠️ 生产环境必须修改！
 SECRET_KEY=使用随机生成的强密钥  # 运行: python -c "import secrets; print(secrets.token_urlsafe(32))"
 FLASK_ENV=development
+APP_CONFIG=development
+ENABLE_SCHEDULER_API=false
+ENABLE_TEST_LOGIN_API=false
 
 # JWT 配置 - ⚠️ 生产环境必须修改！
 JWT_SECRET_KEY=使用随机生成的强密钥  # 运行: python -c "import secrets; print(secrets.token_urlsafe(32))"
@@ -151,11 +154,6 @@ ADMIN_VERIFICATION_CODE=你的管理员验证码
 python -c "import secrets; print('SECRET_KEY=' + secrets.token_urlsafe(32))"
 python -c "import secrets; print('JWT_SECRET_KEY=' + secrets.token_urlsafe(32))"
 python -c "import secrets; print('ADMIN_VERIFICATION_CODE=' + secrets.token_urlsafe(16))"
-```
-JWT_SECRET_KEY=your-jwt-secret-key
-
-# 管理员验证码
-ADMIN_VERIFICATION_CODE=admin123456
 ```
 
 ### 5. 初始化数据库
@@ -365,9 +363,19 @@ class ProductionConfig(Config):
 # 运行单元测试（待实现）
 pytest tests/
 
+# 检查文本文件编码（UTF-8 无 BOM）
+python scripts/check_encoding.py
+
 # 生成测试数据
 python scripts/add_realistic_ratings.py
 ```
+
+## 🧭 开发约定
+
+- 应用与包内模块优先使用包路径导入（例如 `from movies_recommend.xxx import ...`）。
+- 入口层（如 `app.py`）可保留最小启动兼容逻辑，以支持 `python app.py`。
+- `scripts/` 下脚本统一通过 `scripts/_bootstrap.py` 设置导入路径，避免在每个脚本中重复手写 `sys.path.insert(...)`。
+- 文本文件编码统一为 `UTF-8`（无 BOM），可用 `python scripts/check_encoding.py` 进行检查。
 
 ## 🤝 贡献指南
 

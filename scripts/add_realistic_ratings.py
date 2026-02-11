@@ -15,17 +15,24 @@ from datetime import datetime
 import pymysql
 import logging
 from logging.handlers import RotatingFileHandler
+from pathlib import Path
 
-# 设置导入路径
-script_dir = os.path.dirname(os.path.abspath(__file__))
-root_dir = os.path.abspath(os.path.join(script_dir, '..'))
-sys.path.insert(0, root_dir)
+# 统一脚本引导
+try:
+    from _bootstrap import setup_project_path
+except ModuleNotFoundError:
+    script_dir = Path(__file__).resolve().parent
+    if str(script_dir) not in sys.path:
+        sys.path.insert(0, str(script_dir))
+    from _bootstrap import setup_project_path
+
+package_root, _ = setup_project_path()
 
 # 导入项目配置
-from config import Config
+from movies_recommend.config import Config
 
 # 配置日志记录
-log_dir = os.path.join(root_dir, 'archive', 'logs')
+log_dir = os.path.join(str(package_root), 'archive', 'logs')
 os.makedirs(log_dir, exist_ok=True)
 log_file = os.path.join(log_dir, 'add_realistic_ratings.log')
 

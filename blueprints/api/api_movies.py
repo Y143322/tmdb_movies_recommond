@@ -1,19 +1,23 @@
 """
 电影API模块 - 提供RESTful风格的电影相关接口
 """
-import os
-import sys
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
-
 import math
 from flask import request, jsonify, current_app
 from flask_login import login_required, current_user
 import pymysql
+from rate_limiter import RateLimiter
 from movies_recommend.extensions import get_db_connection
 from movies_recommend.blueprints.api import api_bp
 from movies_recommend.logger import get_logger
+from movies_recommend.db_utils import fetch_random_rows_by_id_range
 
 logger = get_logger('api_movies')
+rating_write_limiter = RateLimiter(requests_per_minute=1200, safety_factor=1.0)
+
+
+def _server_error_response():
+    """统一500错误响应，避免泄露内部异常细节。"""
+    return api_response(False, '服务器内部错误', code=500)
 
 
 def api_response(success=True, message='', data=None, code=200):
@@ -100,9 +104,9 @@ def get_movies():
     """
     try:
         # 获取查询参数
-        page = request.args.get('page', 1, type=int)
-        page_size = request.args.get('pageSize', 10, type=int)
-        sort_by = request.args.get('sort', 'hot')
+        page = request.args.get('page', type=int) or 1
+        page_size = request.args.get('pageSize', type=int) or 10
+        sort_by = request.args.get('sort') or 'hot'
         
         # 参数验证
         if page < 1:
@@ -168,7 +172,7 @@ def get_movies():
             
     except Exception as e:
         logger.error(f"获取电影列表失败: {str(e)}")
-        return api_response(False, f'服务器错误: {str(e)}', code=500)
+        return _server_error_response()
 
 
 @api_bp.route('/movies/<int:movie_id>', methods=['GET'])
@@ -267,7 +271,7 @@ def get_movie_detail(movie_id):
             
     except Exception as e:
         logger.error(f"获取电影详情失败: {str(e)}")
-        return api_response(False, f'服务器错误: {str(e)}', code=500)
+        return _server_error_response()
 
 
 @api_bp.route('/movies/random', methods=['GET'])
@@ -277,7 +281,7 @@ def get_random_movies():
     GET /api/movies/random?count=5
     """
     try:
-        count = request.args.get('count', 5, type=int)
+        count = request.args.get('count', type=int) or 5
         if count < 1 or count > 20:
             count = 5
         
@@ -285,14 +289,12 @@ def get_random_movies():
         cursor = conn.cursor(pymysql.cursors.DictCursor)
         
         try:
-            cursor.execute('''
-                SELECT id, title, poster_path, release_date, vote_average, genres, popularity
-                FROM movies
-                ORDER BY RAND()
-                LIMIT %s
-            ''', (count,))
-            
-            movies_raw = cursor.fetchall()
+            movies_raw = fetch_random_rows_by_id_range(
+                cursor=cursor,
+                table='movies',
+                select_columns='id, title, poster_path, release_date, vote_average, genres, popularity',
+                limit=count,
+            )
             movies_list = [format_movie_data(movie) for movie in movies_raw]
             
             return api_response(
@@ -307,7 +309,7 @@ def get_random_movies():
             
     except Exception as e:
         logger.error(f"获取随机电影失败: {str(e)}")
-        return api_response(False, f'服务器错误: {str(e)}', code=500)
+        return _server_error_response()
 
 
 @api_bp.route('/movies/recommendations', methods=['GET'])
@@ -369,7 +371,7 @@ def get_recommendations():
             
     except Exception as e:
         logger.error(f"获取推荐失败: {str(e)}")
-        return api_response(False, f'服务器错误: {str(e)}', code=500)
+        return _server_error_response()
 
 
 @api_bp.route('/movies/recommendations/refresh', methods=['POST'])
@@ -383,7 +385,7 @@ def refresh_recommendations():
     返回新的推荐电影列表，排除当前已显示的电影
     """
     try:
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         current_movies = data.get('current_movies', [])
 
         # 检查是否是管理员
@@ -442,7 +444,7 @@ def refresh_recommendations():
 
     except Exception as e:
         logger.error(f"刷新推荐失败: {str(e)}")
-        return api_response(False, f'服务器错误: {str(e)}', code=500)
+        return _server_error_response()
 
 
 @api_bp.route('/movies/search', methods=['GET'])
@@ -452,9 +454,9 @@ def search_movies():
     GET /api/movies/search?keyword=xxx&page=1&pageSize=10
     """
     try:
-        keyword = request.args.get('keyword', '').strip()
-        page = request.args.get('page', 1, type=int)
-        page_size = request.args.get('pageSize', 10, type=int)
+        keyword = (request.args.get('keyword') or '').strip()
+        page = request.args.get('page', type=int) or 1
+        page_size = request.args.get('pageSize', type=int) or 10
         
         if not keyword:
             return api_response(False, '搜索关键词不能为空', code=400)
@@ -524,7 +526,7 @@ def search_movies():
             
     except Exception as e:
         logger.error(f"搜索电影失败: {str(e)}")
-        return api_response(False, f'服务器错误: {str(e)}', code=500)
+        return _server_error_response()
 
 
 @api_bp.route('/movies/<int:movie_id>/rating', methods=['POST'])
@@ -539,12 +541,14 @@ def submit_rating(movie_id):
     }
     """
     try:
+        rating_write_limiter.acquire()
+
         # 检查是否是管理员
         if current_user.is_admin:
             return api_response(False, '管理员不能评分', code=403)
         
-        data = request.get_json()
-        if not data:
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict):
             return api_response(False, '请求数据格式错误', code=400)
         
         rating = data.get('rating')
@@ -631,7 +635,7 @@ def submit_rating(movie_id):
             
     except Exception as e:
         logger.error(f"提交评分失败: {str(e)}")
-        return api_response(False, f'服务器错误: {str(e)}', code=500)
+        return _server_error_response()
 
 
 @api_bp.route('/movies/<int:movie_id>/ratings', methods=['GET'])
@@ -641,8 +645,8 @@ def get_movie_ratings(movie_id):
     GET /api/movies/:id/ratings?page=1&pageSize=10
     """
     try:
-        page = request.args.get('page', 1, type=int)
-        page_size = request.args.get('pageSize', 10, type=int)
+        page = request.args.get('page', type=int) or 1
+        page_size = request.args.get('pageSize', type=int) or 10
         
         if page < 1:
             page = 1
@@ -703,7 +707,7 @@ def get_movie_ratings(movie_id):
             
     except Exception as e:
         logger.error(f"获取评分列表失败: {str(e)}")
-        return api_response(False, f'服务器错误: {str(e)}', code=500)
+        return _server_error_response()
 
 
 @api_bp.route('/movies/<int:movie_id>/rating/<int:rating_id>', methods=['DELETE'])
@@ -716,6 +720,8 @@ def delete_rating(movie_id, rating_id):
     普通用户只能删除自己的评分，管理员可以删除任何评分
     """
     try:
+        rating_write_limiter.acquire()
+
         conn = get_db_connection()
         cursor = conn.cursor(pymysql.cursors.DictCursor)
         
@@ -774,5 +780,4 @@ def delete_rating(movie_id, rating_id):
             
     except Exception as e:
         logger.error(f"删除评分失败: {str(e)}")
-        return api_response(False, f'服务器错误: {str(e)}', code=500)
-
+        return _server_error_response()

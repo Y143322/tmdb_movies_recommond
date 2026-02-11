@@ -1,4 +1,4 @@
-﻿{% extends 'base.html' %}
+{% extends 'base.html' %}
 
 {% block title %}
 电影评分推荐系统
@@ -22,7 +22,7 @@
     <div class="hero-section">
         <h1>个性化电影评分推荐系统</h1>
         <p>欢迎使用基于协同过滤的电影评分推荐系统</p>
-        <a href="{{ url_for('movies.show_movies_root', page=1) }}" class="browse-btn">浏览电影</a>
+        <a href="{{ url_for('main.show_movies', page=1) }}" class="browse-btn">浏览电影</a>
     </div>
 
     {% if current_user.is_authenticated %}
@@ -84,7 +84,7 @@
         {% else %}
         <div class="no-recommendations">
             <p>开始对电影评分，我们将为您提供个性化推荐！</p>
-            <a href="{{ url_for('movies.show_movies_root', page=1) }}" class="browse-btn btn-small">去评分</a>
+            <a href="{{ url_for('main.show_movies', page=1) }}" class="browse-btn btn-small">去评分</a>
         </div>
         {% endif %}
     </div>

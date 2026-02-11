@@ -24,6 +24,11 @@ from movies_recommend.tasks import update_movie_popularity
 # 创建管理员蓝图，设置URL前缀为/admin，所有管理员路由都将以/admin开头
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
 
+
+def _server_error_message(action='操作失败'):
+    """统一对外错误消息，避免泄露内部异常细节。"""
+    return f'{action}，请稍后重试'
+
 # 管理员权限检查装饰器
 def admin_required(f):
     """检查用户是否为管理员的装饰器
@@ -92,7 +97,7 @@ def dashboard():
         # 如果查询过程中出现任何错误，将所有统计数据设为0
         total_users, total_movies, total_ratings = 0, 0, 0
         # 显示错误消息
-        flash(f'获取统计数据失败: {e}', 'error')
+        flash(_server_error_message('获取统计数据失败'), 'error')
     finally:
         # 确保无论如何都关闭数据库连接
         cursor.close()
@@ -125,10 +130,10 @@ def reviews(page=1):
     per_page = 10
     
     # 获取筛选参数
-    movie_filter = request.args.get('movie', '').strip()
-    user_filter = request.args.get('user', '').strip()
-    keyword_filter = request.args.get('keyword', '').strip()
-    rating_filter = request.args.get('rating', '').strip()
+    movie_filter = (request.args.get('movie') or '').strip()
+    user_filter = (request.args.get('user') or '').strip()
+    keyword_filter = (request.args.get('keyword') or '').strip()
+    rating_filter = (request.args.get('rating') or '').strip()
 
     # 获取数据库连接，使用字典游标便于处理结果
     conn = get_db_connection()
@@ -223,7 +228,7 @@ def reviews(page=1):
         # 如果查询过程中出现错误，设置空数据并显示错误消息
         reviews = []
         total_pages = 0
-        flash(f'获取评论失败: {e}', 'error')
+        flash(_server_error_message('获取评论失败'), 'error')
     finally:
         # 确保关闭数据库连接
         cursor.close()
@@ -261,7 +266,7 @@ def delete_review(review_id):
         # 如果发生错误，回滚事务
         conn.rollback()
         # 显示错误消息
-        flash(f'删除评论失败: {e}', 'error')
+        flash(_server_error_message('删除评论失败'), 'error')
     finally:
         # 确保关闭数据库连接
         cursor.close()
@@ -298,7 +303,7 @@ def delete_reply(reply_id):
         # 如果发生错误，回滚事务
         conn.rollback()
         # 显示错误消息
-        flash(f'删除回复失败: {e}', 'error')
+        flash(_server_error_message('删除回复失败'), 'error')
     finally:
         # 确保关闭数据库连接
         cursor.close()
@@ -372,10 +377,10 @@ def movies(page=1):
     order = request.args.get('order', 'asc')
     
     # 从URL查询参数中获取搜索条件
-    title = request.args.get('title', '').strip()
-    genre = request.args.get('genre', '').strip()
-    min_rating = request.args.get('min_rating', '').strip()
-    max_rating = request.args.get('max_rating', '').strip()
+    title = (request.args.get('title') or '').strip()
+    genre = (request.args.get('genre') or '').strip()
+    min_rating = (request.args.get('min_rating') or '').strip()
+    max_rating = (request.args.get('max_rating') or '').strip()
 
     # 验证排序字段，防止SQL注入攻击
     # 只允许使用预定义的字段进行排序
@@ -466,7 +471,7 @@ def movies(page=1):
             per_page=per_page
         )
     except Exception as e:
-        flash(f'获取电影列表失败: {str(e)}', 'error')
+        flash(_server_error_message('获取电影列表失败'), 'error')
         return redirect(url_for('admin.dashboard'))
 
 @admin_bp.route('/users')
@@ -494,10 +499,10 @@ def users(page=1):
     per_page = 10
     
     # 从URL查询参数中获取搜索条件
-    username = request.args.get('username', '').strip()
-    email = request.args.get('email', '').strip()
-    user_type = request.args.get('user_type', '').strip()
-    status = request.args.get('status', '').strip()
+    username = (request.args.get('username') or '').strip()
+    email = (request.args.get('email') or '').strip()
+    user_type = (request.args.get('user_type') or '').strip()
+    status = (request.args.get('status') or '').strip()
 
     try:
         conn = get_db_connection()
@@ -636,7 +641,7 @@ def users(page=1):
 
     except Exception as e:
         logger.error(f"获取用户列表失败: {str(e)}")
-        flash(f'获取用户列表失败: {str(e)}', 'error')
+        flash(_server_error_message('获取用户列表失败'), 'error')
         return redirect(url_for('admin.dashboard'))
 
 @admin_bp.route('/delete_user/<int:user_id>/<user_type>', methods=['POST'])
@@ -659,7 +664,7 @@ def delete_user(user_id, user_type):
         conn.close()
         flash('用户删除成功')
     except Exception as e:
-        flash(f'删除用户失败: {str(e)}')
+        flash(_server_error_message('删除用户失败'), 'error')
 
     return redirect(url_for('admin.users'))
 
@@ -697,7 +702,7 @@ def reset_user_password(user_id, user_type):
 
         flash(f'用户密码已重置为 {default_password}' + ('，用户下次登录时将被要求修改密码' if update_reset_flag else ''))
     except Exception as e:
-        flash(f'重置密码失败: {str(e)}')
+        flash(_server_error_message('重置密码失败'), 'error')
 
     return redirect(url_for('admin.users'))
 
@@ -707,7 +712,8 @@ def update_movies():
     """触发更新电影数据爬虫，返回JSON响应"""
     try:
         # 检查是否需要强制重置
-        force_reset = request.json.get('force_reset', False) if request.is_json else False
+        payload = request.get_json(silent=True) if request.is_json else None
+        force_reset = bool(payload.get('force_reset', False)) if isinstance(payload, dict) else False
 
         # 检查爬虫模块是否可用
         try:
@@ -729,7 +735,7 @@ def update_movies():
     except Exception as e:
         from flask import current_app
         current_app.logger.error(f'启动更新任务失败: {str(e)}')
-        return jsonify({"success": False, "message": f'启动更新任务失败: {str(e)}'}), 500
+        return jsonify({"success": False, "message": _server_error_message('启动更新任务失败')}), 500
 
 @admin_bp.route('/reset_scraper', methods=['POST'])
 @admin_required
@@ -751,7 +757,7 @@ def reset_scraper():
     except Exception as e:
         from flask import current_app
         current_app.logger.error(f'重置爬虫状态失败: {str(e)}')
-        return jsonify({"success": False, "message": f'重置爬虫状态失败: {str(e)}'}), 500
+        return jsonify({"success": False, "message": _server_error_message('重置爬虫状态失败')}), 500
 
 @admin_bp.route('/stop_scraper', methods=['POST'])
 @admin_required
@@ -771,7 +777,7 @@ def stop_scraper():
         return jsonify({"success": False, "message": "无法加载爬虫模块以发送停止信号。"}), 500
     except Exception as e:
         current_app.logger.error(f'停止爬虫任务失败: {str(e)}')
-        return jsonify({"success": False, "message": f'停止爬虫任务失败: {str(e)}'}), 500
+        return jsonify({"success": False, "message": _server_error_message('停止爬虫任务失败')}), 500
 
 @admin_bp.route('/scraper_progress')
 @admin_required
@@ -804,7 +810,7 @@ def scraper_progress():
         logger.error(f"获取爬虫进度失败: {e}")
         return jsonify({
             "status": "error",
-            "message": f"获取进度失败: {str(e)}",
+            "message": _server_error_message('获取进度失败'),
             "current": 0,
             "total": 100
         })
@@ -871,7 +877,7 @@ def mute_user(user_id):
         conn.close()
         flash(message, 'success')
     except Exception as e:
-        flash(f'禁言用户操作失败: {str(e)}', 'error')
+        flash(_server_error_message('禁言用户操作失败'), 'error')
     
     return redirect(url_for('admin.users'))
     
@@ -939,7 +945,7 @@ def check_mute_status(user_id):
         
     except Exception as e:
         return jsonify({
-            'error': f'获取禁言状态失败: {str(e)}'
+            'error': _server_error_message('获取禁言状态失败')
         }), 500
 
 @admin_bp.route('/delete_movie/<int:movie_id>', methods=['POST'])
@@ -981,7 +987,7 @@ def delete_movie(movie_id):
         
         flash(f'电影《{movie_title}》已成功删除', 'success')
     except Exception as e:
-        flash(f'删除电影失败: {str(e)}', 'error')
+        flash(_server_error_message('删除电影失败'), 'error')
         
     # 返回到来源页面或电影列表页
     return redirect(url_for('admin.movies'))
@@ -1032,7 +1038,7 @@ def trigger_update_movie_popularity():
         logger.error(f"手动更新电影热度时发生错误: {str(e)}")
         return jsonify({
             'status': 'error',
-            'message': f'更新过程中发生错误: {str(e)}'
+            'message': _server_error_message('更新过程中发生错误')
         }), 500
 
 @admin_bp.route('/custom_fetch', methods=['POST'])
@@ -1048,7 +1054,8 @@ def custom_fetch():
     """
     try:
         # 获取请求数据
-        data = request.json if request.is_json else {}
+        payload = request.get_json(silent=True) if request.is_json else None
+        data = payload if isinstance(payload, dict) else {}
         
         # 记录请求信息
         logger.info(f"收到自定义抓取请求: {data}")
@@ -1093,7 +1100,7 @@ def custom_fetch():
             
     except Exception as e:
         logger.error(f"启动自定义抓取任务失败: {str(e)}")
-        return jsonify({"success": False, "message": f"启动自定义抓取任务失败: {str(e)}"}), 500
+        return jsonify({"success": False, "message": _server_error_message('启动自定义抓取任务失败')}), 500
 
 @admin_bp.route('/api/movie_genres_distribution')
 @admin_required
@@ -1175,7 +1182,7 @@ def movie_genres_distribution():
     except Exception as e:
         logger.error(f"获取电影类型分布数据失败: {e}")
         return jsonify({
-            'error': f"获取数据失败: {e}"
+            'error': _server_error_message('获取数据失败')
         }), 500
     
     finally:
@@ -1251,7 +1258,7 @@ def movie_ratings_distribution():
     except Exception as e:
         logger.error(f"获取电影评分分布数据失败: {e}")
         return jsonify({
-            'error': f"获取数据失败: {e}"
+            'error': _server_error_message('获取数据失败')
         }), 500
     
     finally:
@@ -1304,7 +1311,7 @@ def popular_movies():
     except Exception as e:
         logger.error(f"获取热门电影排行数据失败: {e}")
         return jsonify({
-            'error': f"获取数据失败: {e}"
+            'error': _server_error_message('获取数据失败')
         }), 500
     
     finally:
@@ -1353,11 +1360,9 @@ def user_growth():
     except Exception as e:
         logger.error(f"获取用户增长趋势数据失败: {e}")
         return jsonify({
-            'error': f"获取数据失败: {e}"
+            'error': _server_error_message('获取数据失败')
         }), 500
     
     finally:
         cursor.close()
         conn.close()
-
-

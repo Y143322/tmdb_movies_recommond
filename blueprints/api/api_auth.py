@@ -1,21 +1,37 @@
 """
 认证API模块 - 提供RESTful风格的认证接口
 """
-import os
-import sys
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
-
 import re
-from flask import request, jsonify, session
+from typing import Any
+from flask import request, jsonify, session, current_app
 from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 import pymysql
+from rate_limiter import RateLimiter
 from movies_recommend.models import User
 from movies_recommend.extensions import get_db_connection
 from movies_recommend.blueprints.api import api_bp
 from movies_recommend.logger import get_logger
+from movies_recommend.auth_service import (
+    create_user_record,
+    username_exists,
+    verify_user_credentials,
+    validate_email,
+    validate_username,
+)
 
 logger = get_logger('api_auth')
+auth_write_limiter = RateLimiter(requests_per_minute=1200, safety_factor=1.0)
+
+
+def _password_min_length():
+    """统一密码最小长度配置。"""
+    return int(current_app.config.get('PASSWORD_MIN_LENGTH', 8))
+
+
+def _server_error_response():
+    """统一500错误响应，避免泄露内部异常细节。"""
+    return api_response(False, '服务器内部错误', code=500)
 
 
 def api_response(success=True, message='', data=None, code=200):
@@ -67,9 +83,11 @@ def login():
         }
     """
     try:
+        auth_write_limiter.acquire()
+
         # 获取请求数据
-        data = request.get_json()
-        if not data:
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict):
             return api_response(False, '请求数据格式错误', code=400)
         
         username = data.get('username', '').strip()
@@ -84,33 +102,16 @@ def login():
         cursor = conn.cursor(pymysql.cursors.DictCursor)
         
         try:
-            # 先检查管理员表
-            cursor.execute('SELECT * FROM admininfo WHERE username = %s', (username,))
-            user_data = cursor.fetchone()
-            is_admin = True
-            
-            # 如果不是管理员，检查普通用户表
-            if not user_data:
-                cursor.execute('SELECT * FROM userinfo WHERE username = %s', (username,))
-                user_data = cursor.fetchone()
-                is_admin = False
-            
-            # 验证用户和密码
-            if not user_data:
+            user_data, is_admin, error_code = verify_user_credentials(cursor, username, password)
+
+            if error_code == 'invalid_credentials':
                 logger.warning(f"登录失败: 用户名 {username} 不存在")
                 return api_response(False, '用户名或密码错误', code=401)
-            
-            if not check_password_hash(user_data['password'], password):
-                logger.warning(f"登录失败: 用户 {username} 密码错误")
-                return api_response(False, '用户名或密码错误', code=401)
-            
-            # 检查用户状态（仅普通用户）
-            if not is_admin:
-                status = user_data.get('status', 'active')
-                if status == 'deleted':
-                    return api_response(False, '该账号已被删除', code=403)
-                if status == 'banned':
-                    return api_response(False, '该账号已被禁言', code=403)
+
+            if error_code == 'deleted':
+                return api_response(False, '该账号已被删除', code=403)
+            if error_code == 'banned':
+                return api_response(False, '该账号已被禁言', code=403)
             
             # 创建用户对象
             user = User(
@@ -147,7 +148,7 @@ def login():
             
     except Exception as e:
         logger.error(f"登录API异常: {str(e)}")
-        return api_response(False, f'服务器错误: {str(e)}', code=500)
+        return _server_error_response()
 
 
 @api_bp.route('/auth/register', methods=['POST'])
@@ -165,9 +166,11 @@ def register():
     }
     """
     try:
+        auth_write_limiter.acquire()
+
         # 获取请求数据
-        data = request.get_json()
-        if not data:
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict):
             return api_response(False, '请求数据格式错误', code=400)
         
         username = data.get('username', '').strip()
@@ -188,20 +191,20 @@ def register():
         if len(username) < 3 or len(username) > 20:
             return api_response(False, '用户名长度需在3-20个字符之间', code=400)
         
-        if not re.match(r'^[a-zA-Z0-9_]+$', username):
+        if not validate_username(username):
             return api_response(False, '用户名只能包含字母、数字和下划线', code=400)
         
         # 密码强度验证
-        if len(password) < 8:
-            return api_response(False, '密码长度至少需要8个字符', code=400)
+        min_length = _password_min_length()
+        if len(password) < min_length:
+            return api_response(False, f'密码长度至少需要{min_length}个字符', code=400)
         
         # 邮箱格式验证
-        if email and not re.match(r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$', email):
+        if email and not validate_email(email):
             return api_response(False, '邮箱格式不正确', code=400)
         
         # 管理员验证码验证
         if user_type == 'admin':
-            from flask import current_app
             ADMIN_VERIFICATION_CODE = current_app.config.get('ADMIN_VERIFICATION_CODE', 'admin123')
             
             if not admin_code:
@@ -216,40 +219,17 @@ def register():
         
         try:
             # 检查用户名是否已存在
-            cursor.execute('SELECT id FROM userinfo WHERE username = %s', (username,))
-            if cursor.fetchone():
+            if username_exists(cursor, username):
                 return api_response(False, '用户名已存在', code=409)
-            
-            cursor.execute('SELECT id FROM admininfo WHERE username = %s', (username,))
-            if cursor.fetchone():
-                return api_response(False, '用户名已存在', code=409)
-            
-            # 密码哈希
-            hashed_password = generate_password_hash(password)
-            
-            # 根据用户类型插入数据
-            if user_type == 'admin':
-                # 获取下一个管理员ID
-                cursor.execute("CALL get_next_user_id(@next_id, 'admin')")
-                cursor.execute("SELECT @next_id")
-                next_id = cursor.fetchone()[0]
-                
-                cursor.execute(
-                    'INSERT INTO admininfo (id, username, password, email) VALUES (%s, %s, %s, %s)',
-                    (next_id, username, hashed_password, email)
-                )
-                is_admin = True
-            else:
-                # 获取下一个普通用户ID
-                cursor.execute("CALL get_next_user_id(@next_id, 'user')")
-                cursor.execute("SELECT @next_id")
-                next_id = cursor.fetchone()[0]
-                
-                cursor.execute(
-                    'INSERT INTO userinfo (id, username, password, email) VALUES (%s, %s, %s, %s)',
-                    (next_id, username, hashed_password, email)
-                )
-                is_admin = False
+
+            next_id, is_admin = create_user_record(
+                cursor=cursor,
+                username=username,
+                password=password,
+                email=email,
+                user_type=user_type,
+                logger=logger,
+            )
             
             conn.commit()
             
@@ -282,14 +262,14 @@ def register():
         except Exception as e:
             conn.rollback()
             logger.error(f"注册失败: {str(e)}")
-            return api_response(False, f'注册失败: {str(e)}', code=500)
+            return _server_error_response()
         finally:
             cursor.close()
             conn.close()
             
     except Exception as e:
         logger.error(f"注册API异常: {str(e)}")
-        return api_response(False, f'服务器错误: {str(e)}', code=500)
+        return _server_error_response()
 
 
 @api_bp.route('/auth/logout', methods=['POST'])
@@ -302,14 +282,16 @@ def logout():
     try:
         username = current_user.username
         logout_user()
-        session.clear()
+        # 不使用 session.clear()，避免清掉 Flask-Login 的 remember-cookie 清理标记
+        session.pop('captcha', None)
+        session.pop('_csrf_token', None)
         
         logger.info(f"用户 {username} 登出")
         return api_response(success=True, message='登出成功')
         
     except Exception as e:
         logger.error(f"登出API异常: {str(e)}")
-        return api_response(False, f'服务器错误: {str(e)}', code=500)
+        return _server_error_response()
 
 
 @api_bp.route('/auth/profile', methods=['GET'])
@@ -332,7 +314,7 @@ def get_profile():
         )
     except Exception as e:
         logger.error(f"获取用户信息异常: {str(e)}")
-        return api_response(False, f'服务器错误: {str(e)}', code=500)
+        return _server_error_response()
 
 
 @api_bp.route('/auth/profile', methods=['PUT'])
@@ -346,8 +328,10 @@ def update_profile():
     }
     """
     try:
-        data = request.get_json()
-        if not data:
+        auth_write_limiter.acquire()
+
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict):
             return api_response(False, '请求数据格式错误', code=400)
         
         email = data.get('email', '').strip()
@@ -379,7 +363,7 @@ def update_profile():
             
     except Exception as e:
         logger.error(f"更新用户信息异常: {str(e)}")
-        return api_response(False, f'服务器错误: {str(e)}', code=500)
+        return _server_error_response()
 
 
 @api_bp.route('/auth/change-password', methods=['POST'])
@@ -395,8 +379,10 @@ def change_password():
     }
     """
     try:
-        data = request.get_json()
-        if not data:
+        auth_write_limiter.acquire()
+
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict):
             return api_response(False, '请求数据格式错误', code=400)
         
         current_password = data.get('currentPassword', '')
@@ -410,8 +396,9 @@ def change_password():
         if new_password != confirm_password:
             return api_response(False, '新密码和确认密码不匹配', code=400)
         
-        if len(new_password) < 8:
-            return api_response(False, '新密码长度至少需要8个字符', code=400)
+        min_length = _password_min_length()
+        if len(new_password) < min_length:
+            return api_response(False, f'新密码长度至少需要{min_length}个字符', code=400)
         
         conn = get_db_connection()
         cursor = conn.cursor(pymysql.cursors.DictCursor)
@@ -443,7 +430,7 @@ def change_password():
             
     except Exception as e:
         logger.error(f"修改密码异常: {str(e)}")
-        return api_response(False, f'服务器错误: {str(e)}', code=500)
+        return _server_error_response()
 
 
 @api_bp.route('/auth/captcha', methods=['GET'])
@@ -464,7 +451,7 @@ def get_captcha():
         
         # 创建验证码图片
         width, height = 120, 40
-        image = Image.new('RGB', (width, height), color=(255, 255, 255))
+        image = Image.new('RGB', (width, height), color=255)
         draw = ImageDraw.Draw(image)
         
         # 尝试加载字体
@@ -507,5 +494,5 @@ def get_captcha():
         
     except Exception as e:
         logger.error(f"生成验证码异常: {str(e)}")
-        return api_response(False, f'服务器错误: {str(e)}', code=500)
+        return _server_error_response()
 

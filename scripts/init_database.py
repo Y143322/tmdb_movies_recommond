@@ -6,13 +6,21 @@
 自动创建数据库和表结构
 """
 
-import os
-import sys
 import pymysql
 from pathlib import Path
 
-# 添加项目根目录到路径
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+# 统一脚本引导
+import sys
+
+try:
+    from _bootstrap import setup_project_path
+except ModuleNotFoundError:
+    script_dir = Path(__file__).resolve().parent
+    if str(script_dir) not in sys.path:
+        sys.path.insert(0, str(script_dir))
+    from _bootstrap import setup_project_path
+
+setup_project_path()
 
 def load_env_config():
     """从 .env 文件加载配置"""

@@ -14,17 +14,24 @@ import datetime
 import pymysql
 import logging
 from logging.handlers import RotatingFileHandler
+from pathlib import Path
 
-# 将项目根目录添加到路径
-script_dir = os.path.dirname(os.path.abspath(__file__))
-root_dir = os.path.abspath(os.path.join(script_dir, '..', '..'))
-sys.path.insert(0, root_dir)
+# 统一脚本引导
+try:
+    from _bootstrap import setup_project_path
+except ModuleNotFoundError:
+    script_dir = Path(__file__).resolve().parent
+    if str(script_dir) not in sys.path:
+        sys.path.insert(0, str(script_dir))
+    from _bootstrap import setup_project_path
+
+package_root, project_root = setup_project_path()
 
 # 导入项目配置
 from movies_recommend.config import Config
 
 # 配置日志记录
-log_dir = os.path.join(root_dir, 'archive', 'logs')
+log_dir = os.path.join(str(package_root), 'archive', 'logs')
 os.makedirs(log_dir, exist_ok=True)
 log_file = os.path.join(log_dir, 'clear_mutes.log')
 
@@ -48,12 +55,13 @@ logger.addHandler(console_handler)
 def get_db_connection():
     """获取数据库连接"""
     try:
+        db_config = Config.DB_CONFIG
         conn = pymysql.connect(
-            host=Config.MYSQL_HOST,
-            user=Config.MYSQL_USER,
-            password=Config.MYSQL_PASSWORD,
-            database=Config.MYSQL_DB,
-            charset='utf8mb4',
+            host=db_config['host'],
+            user=db_config['user'],
+            password=db_config['password'],
+            database=db_config['database'],
+            charset=db_config.get('charset', 'utf8mb4'),
             cursorclass=pymysql.cursors.DictCursor
         )
         return conn

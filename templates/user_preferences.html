@@ -220,7 +220,7 @@
             </div>
             
             <div class="text-center mt-4">
-                <a href="{{ url_for('movies.show_movies_root', page=1) }}" class="btn btn-primary">浏览电影</a>
+                <a href="{{ url_for('main.show_movies', page=1) }}" class="btn btn-primary">浏览电影</a>
                 <a href="{{ url_for('main.refresh_user_preferences') }}" class="btn btn-outline-primary">立即分析偏好</a>
             </div>
         {% endif %}

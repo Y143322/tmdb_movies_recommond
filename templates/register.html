@@ -8,6 +8,7 @@
 {% block content %}
 <div class="auth-container">
     <form method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <label for="username">用户名:</label>
         <input type="text" id="username" name="username" required>
 

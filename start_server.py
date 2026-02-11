@@ -2,13 +2,24 @@
 Windows 生产环境启动脚本
 使用 waitress WSGI 服务器
 """
-from waitress import serve
-from app import create_app
+import importlib
 import os
+
+
+def _bootstrap_app():
+    """延迟导入应用工厂，避免模块导入阶段副作用。"""
+    from app import create_app
+    return create_app('production')
+
+
+def _load_waitress_serve():
+    module = importlib.import_module('waitress')
+    return getattr(module, 'serve')
 
 def main():
     # 创建应用实例
-    app = create_app('production')
+    app = _bootstrap_app()
+    serve = _load_waitress_serve()
     
     # 从环境变量读取配置，或使用默认值
     host = os.getenv('HOST', '0.0.0.0')

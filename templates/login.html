@@ -11,6 +11,7 @@
     <p class="auth-subtitle">根据您的观影和评分记录，我们可以为您推荐更符合口味的电影</p>
 
     <form method="post" class="auth-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="form-group">
             <label for="username">用户名</label>
             <input type="text" id="username" name="username" required placeholder="请输入您的用户名">

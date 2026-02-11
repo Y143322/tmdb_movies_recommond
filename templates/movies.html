@@ -121,15 +121,15 @@
     {% else %}
     <!-- 排序选项 -->
     <div class="sort-options">
-        <a href="{{ url_for('movies.show_movies_root', sort='hot') }}" 
+        <a href="{{ url_for('main.show_movies', sort='hot') }}" 
            class="sort-option {% if sort_by == 'hot' or not sort_by %}active{% endif %}">
            <i class="fas fa-fire"></i> 按热门排序 <span class="sort-arrow">↓</span>
         </a>
-        <a href="{{ url_for('movies.show_movies_root', sort='time') }}" 
+        <a href="{{ url_for('main.show_movies', sort='time') }}" 
            class="sort-option {% if sort_by == 'time' %}active{% endif %}">
            <i class="fas fa-clock"></i> 按时间排序 <span class="sort-arrow">↓</span>
         </a>
-        <a href="{{ url_for('movies.show_movies_root', sort='rating') }}" 
+        <a href="{{ url_for('main.show_movies', sort='rating') }}" 
            class="sort-option {% if sort_by == 'rating' %}active{% endif %}">
            <i class="fas fa-star"></i> 按评价排序 <span class="sort-arrow">↓</span>
         </a>
@@ -194,7 +194,7 @@
             {% if keyword %}
             <a href="{{ url_for('movies.search_movies', keyword=keyword, page=page-1, sort=sort_by) }}" class="page-link prev">上一页</a>
             {% else %}
-            <a href="{{ url_for('movies.show_movies_page', page=page-1, sort=sort_by) }}" class="page-link prev">上一页</a>
+            <a href="{{ url_for('main.show_movies', page=page-1, sort=sort_by) }}" class="page-link prev">上一页</a>
             {% endif %}
         {% endif %}
         
@@ -204,7 +204,7 @@
             {% if keyword %}
             <a href="{{ url_for('movies.search_movies', keyword=keyword, page=1, sort=sort_by) }}" class="page-link">1</a>
             {% else %}
-            <a href="{{ url_for('movies.show_movies_page', page=1, sort=sort_by) }}" class="page-link">1</a>
+            <a href="{{ url_for('main.show_movies', page=1, sort=sort_by) }}" class="page-link">1</a>
             {% endif %}
             {% if start_page > 2 %}
             <span class="ellipsis">...</span>
@@ -215,7 +215,7 @@
             {% if keyword %}
             <a href="{{ url_for('movies.search_movies', keyword=keyword, page=p, sort=sort_by) }}" class="page-link {% if p == page %}active{% endif %}">{{ p }}</a>
             {% else %}
-            <a href="{{ url_for('movies.show_movies_page', page=p, sort=sort_by) }}" class="page-link {% if p == page %}active{% endif %}">{{ p }}</a>
+            <a href="{{ url_for('main.show_movies', page=p, sort=sort_by) }}" class="page-link {% if p == page %}active{% endif %}">{{ p }}</a>
             {% endif %}
         {% endfor %}
         
@@ -226,7 +226,7 @@
             {% if keyword %}
             <a href="{{ url_for('movies.search_movies', keyword=keyword, page=total_pages, sort=sort_by) }}" class="page-link">{{ total_pages }}</a>
             {% else %}
-            <a href="{{ url_for('movies.show_movies_page', page=total_pages, sort=sort_by) }}" class="page-link">{{ total_pages }}</a>
+            <a href="{{ url_for('main.show_movies', page=total_pages, sort=sort_by) }}" class="page-link">{{ total_pages }}</a>
             {% endif %}
         {% endif %}
         
@@ -234,7 +234,7 @@
             {% if keyword %}
             <a href="{{ url_for('movies.search_movies', keyword=keyword, page=page+1, sort=sort_by) }}" class="page-link next">下一页</a>
             {% else %}
-            <a href="{{ url_for('movies.show_movies_page', page=page+1, sort=sort_by) }}" class="page-link next">下一页</a>
+            <a href="{{ url_for('main.show_movies', page=page+1, sort=sort_by) }}" class="page-link next">下一页</a>
             {% endif %}
         {% endif %}
     </div>
